@@ -42,10 +42,14 @@ const helpBtn = document.getElementById('help-btn');
 const helpOverlay = document.getElementById('help-overlay');
 const helpDialog = document.getElementById('help-dialog');
 const helpCloseBtn = document.getElementById('help-close-btn');
+const helpTabGuideBtn = document.getElementById('help-tab-guide');
 const helpTabMarkdownBtn = document.getElementById('help-tab-markdown');
 const helpTabMarpBtn = document.getElementById('help-tab-marp');
+const helpTabPresentationBtn = document.getElementById('help-tab-presentation');
+const helpGuidePanel = document.getElementById('help-panel-guide');
 const helpMarkdownPanel = document.getElementById('help-panel-markdown');
 const helpMarpPanel = document.getElementById('help-panel-marp');
+const helpPresentationPanel = document.getElementById('help-panel-presentation');
 
 const INITIAL_STATUS = 'ファイルを開くか、Markdownをドラッグ&ドロップしてください。';
 
@@ -373,10 +377,14 @@ function init() {
     overlay: helpOverlay,
     dialog: helpDialog,
     closeBtn: helpCloseBtn,
+    tabGuideBtn: helpTabGuideBtn,
     tabMarkdownBtn: helpTabMarkdownBtn,
     tabMarpBtn: helpTabMarpBtn,
+    tabPresentationBtn: helpTabPresentationBtn,
+    guidePanel: helpGuidePanel,
     markdownPanel: helpMarkdownPanel,
     marpPanel: helpMarpPanel,
+    presentationPanel: helpPresentationPanel,
     onStatus: setStatus,
   });
   refreshActivePreview();

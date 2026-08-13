@@ -101,16 +101,20 @@
 <div class="help-overlay" id="help-overlay" hidden>
   <div class="help-dialog" id="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="help-header">
-      <h2 class="help-title" id="help-title">Markdown / Marp 早見表</h2>
+      <h2 class="help-title" id="help-title">MarkdownUtil ヘルプ</h2>
       <button type="button" id="help-close-btn" class="help-close-btn" aria-label="ヘルプを閉じる">×</button>
     </div>
-    <div class="help-tabs" role="tablist" aria-label="早見表の切替">
-      <button type="button" id="help-tab-markdown" class="help-tab is-active" role="tab" aria-selected="true">Markdown</button>
+    <div class="help-tabs" role="tablist" aria-label="ヘルプの切替">
+      <button type="button" id="help-tab-guide" class="help-tab is-active" role="tab" aria-selected="true">使い方</button>
+      <button type="button" id="help-tab-markdown" class="help-tab" role="tab" aria-selected="false">Markdown</button>
       <button type="button" id="help-tab-marp" class="help-tab" role="tab" aria-selected="false">Marp</button>
+      <button type="button" id="help-tab-presentation" class="help-tab" role="tab" aria-selected="false">プレゼン</button>
     </div>
     <div class="help-body">
-      <div class="help-panel-markdown" id="help-panel-markdown"></div>
+      <div class="help-panel-guide" id="help-panel-guide"></div>
+      <div class="help-panel-markdown" id="help-panel-markdown" hidden></div>
       <div class="help-panel-marp" id="help-panel-marp" hidden></div>
+      <div class="help-panel-presentation" id="help-panel-presentation" hidden></div>
     </div>
   </div>
 </div>

@@ -1,9 +1,9 @@
 // help.js
-// 「? ヘルプ」で開く、Markdown / Marp記法の早見表を担当する。
-// 記法データの保持、タブ切替、開閉、記法例のクリップボードコピーをここへ集約し、
-// app.jsには要素の受け渡しとボタンの配線程度しか持ち込まない。
-// あくまで「書き方を忘れたときにその場で確認できる」早見表であり、
-// 編集内容への自動挿入やWYSIWYG化は行わない。
+// 「? ヘルプ」で開くモーダルを担当する。「使い方」「Markdown」「Marp」「プレゼン」の
+// 4タブで構成され、コンテンツの保持、タブ切替、開閉、記法例のクリップボードコピーを
+// ここへ集約する。app.jsには要素の受け渡しとボタンの配線程度しか持ち込まない。
+// あくまで「その場で読める使い方・早見表」であり、README相当の詳細解説や
+// チュートリアル、編集内容への自動挿入やWYSIWYG化は行わない。
 
 const MARKDOWN_ITEMS = [
   {
@@ -106,50 +106,174 @@ const MARP_ITEMS = [
   },
 ];
 
+// 「使い方」タブに載せる内容。あくまで「このページで何ができて、どう使うか」を
+// その場で一読できる要約であり、README相当の詳細な説明や外部マニュアルは持ち込まない。
+const GUIDE_FEATURES = [
+  'Office文書（Word/Excel/PowerPoint）やPDFをMarkdownへ変換する',
+  '変換したMarkdown、または直接書いたMarkdownをその場で編集する',
+  '編集結果を文書として整形表示する（文書表示）',
+  '編集結果をスライドとして表示する（スライド表示、Marp記法対応）',
+  'Markdownをテキストファイルとして保存する',
+  '編集内容をクリップボードへコピーする',
+  'スライドをHTMLファイルとして書き出す（発表用スライドショーとして単体で開ける）',
+  'スライドを印刷・PDF化する',
+];
+
+const GUIDE_STEPS = [
+  'ファイルをドラッグ＆ドロップするか「ファイルを選択」で読み込む（Office文書・PDFはMarkdownへ自動変換される。すでにMarkdownがあれば直接貼り付けてもよい）',
+  '中央のエディタでMarkdownを確認・編集する',
+  '「文書表示」「スライド表示」を切り替えて、仕上がりを確認する',
+  '必要に応じて保存・コピー・HTML出力・印刷を行う',
+  'スライドを人前で見せたい場合は「プレゼン」タブを参照する',
+];
+
+const GUIDE_FILE_TYPES = 'Word（.docx）／Excel（.xlsx）／PowerPoint（.pptx）／PDF／Markdown（.md, .txt）に対応する。';
+const GUIDE_FILE_NOTE = '画像だけをスキャンしたPDF（文字情報を持たないPDF）は、文字として読み取れないためMarkdownへ変換できない場合がある。その場合は元文書やOCR済みのファイルを利用する。';
+
+const GUIDE_DOC_VS_SLIDE = [
+  { term: '文書表示', desc: '同じMarkdownを、見出し・箇条書き・表などを整形した「読み物」として表示する。' },
+  { term: 'スライド表示', desc: '同じMarkdownを「---」で区切り、1枚ずつのスライドとして表示する。Marp独自の記法（テーマ・背景・スピーカーノート等）は「Marp」タブを参照。' },
+];
+
+// 「プレゼン」タブに載せる内容。
+const PRESENTATION_STEPS = [
+  'スライド表示に切り替え、内容を確認する',
+  'スライドツールバーの「プレゼン開始」を押す（別ウィンドウが開く）',
+  '開いた別ウィンドウを、プロジェクターや外部ディスプレイ側へ手動でドラッグして移動する（自動での移動・全画面化は行わない。IIS配置はHTTP想定のため、ブラウザの画面配置API等には依存しない）',
+  '必要であれば別ウィンドウ側で全画面表示にする。元のウィンドウには発表者ビュー（現在/次のスライド・スピーカーノート・ページ位置）が表示され、進行操作は元のウィンドウ側から行う',
+];
+
+const PRESENTER_VIEW_FEATURES = [
+  '現在のスライドと次のスライドを並べて表示する',
+  'スピーカーノート（発表メモ）を表示する',
+  '現在のページ位置（例: 2 / 5）を表示する',
+  '「前へ」「次へ」ボタンとキーボード操作でスライドを進める',
+  '「終了」でプレゼンを終了し、別ウィンドウも閉じる',
+];
+
+const PRESENTATION_NOTE_EXAMPLE = {
+  title: 'スピーカーノートの書き方（例）',
+  desc: 'スライドの区切りの間に書いたHTMLコメントが、発表者ビューのメモになる。記法の詳細は「Marp」タブを参照。',
+  code: '<!--\nここに発表時のメモを書く。\n発表者ビューに表示される。\n-->',
+};
+
+const HTML_EXPORT_NOTE = 'スライドツールバーの「HTML出力」で、Marpを使わずそのまま開ける単体のHTMLファイルとして書き出せる。キーボード・クリックでのページ送り、全画面表示、印刷に対応する（発表者ビューなしの簡易版）。';
+
 let els = null; // { openBtn, overlay, dialog, closeBtn, tabButtons, panels, statusCallback }
 let lastFocused = null;
 let rendered = false;
 
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function buildItem(item) {
+  const article = document.createElement('article');
+  article.className = 'help-item';
+
+  article.appendChild(el('h3', 'help-item__title', item.title));
+  article.appendChild(el('p', 'help-item__desc', item.desc));
+
+  const codeWrap = document.createElement('div');
+  codeWrap.className = 'help-item__code-wrap';
+
+  const pre = document.createElement('pre');
+  pre.className = 'help-item__code';
+  const code = document.createElement('code');
+  code.textContent = item.code;
+  pre.appendChild(code);
+  codeWrap.appendChild(pre);
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'help-item__copy-btn';
+  copyBtn.textContent = 'コピー';
+  copyBtn.addEventListener('click', () => copySnippet(item.code, copyBtn));
+  codeWrap.appendChild(copyBtn);
+
+  article.appendChild(codeWrap);
+  return article;
+}
+
 function buildPanel(items) {
   const section = document.createElement('div');
   section.className = 'help-panel';
-
-  items.forEach((item) => {
-    const article = document.createElement('article');
-    article.className = 'help-item';
-
-    const title = document.createElement('h3');
-    title.className = 'help-item__title';
-    title.textContent = item.title;
-    article.appendChild(title);
-
-    const desc = document.createElement('p');
-    desc.className = 'help-item__desc';
-    desc.textContent = item.desc;
-    article.appendChild(desc);
-
-    const codeWrap = document.createElement('div');
-    codeWrap.className = 'help-item__code-wrap';
-
-    const pre = document.createElement('pre');
-    pre.className = 'help-item__code';
-    const code = document.createElement('code');
-    code.textContent = item.code;
-    pre.appendChild(code);
-    codeWrap.appendChild(pre);
-
-    const copyBtn = document.createElement('button');
-    copyBtn.type = 'button';
-    copyBtn.className = 'help-item__copy-btn';
-    copyBtn.textContent = 'コピー';
-    copyBtn.addEventListener('click', () => copySnippet(item.code, copyBtn));
-    codeWrap.appendChild(copyBtn);
-
-    article.appendChild(codeWrap);
-    section.appendChild(article);
-  });
-
+  items.forEach((item) => section.appendChild(buildItem(item)));
   return section;
+}
+
+function buildGuidePanel() {
+  const wrap = document.createElement('div');
+  wrap.className = 'help-guide';
+
+  wrap.appendChild(el('p', 'help-guide__intro', 'MarkdownUtilは、Office文書やPDFをMarkdownへ変換し、そのままブラウザ上で編集・文書表示・スライド表示ができるツール。すべてブラウザ内で完結し、外部通信は行わない。'));
+
+  wrap.appendChild(el('h3', 'help-section__title', 'できること'));
+  const features = el('ul', 'help-guide__list');
+  GUIDE_FEATURES.forEach((text) => features.appendChild(el('li', null, text)));
+  wrap.appendChild(features);
+
+  wrap.appendChild(el('h3', 'help-section__title', '基本的な利用の流れ'));
+  const steps = el('ol', 'help-guide__steps');
+  GUIDE_STEPS.forEach((text) => steps.appendChild(el('li', null, text)));
+  wrap.appendChild(steps);
+
+  const flow = document.createElement('div');
+  flow.className = 'help-flow';
+  flow.appendChild(el('div', 'help-flow__box', 'Office文書 / PDF'));
+  flow.appendChild(el('div', 'help-flow__arrow', '↓ 変換'));
+  flow.appendChild(el('div', 'help-flow__box', 'Markdown（編集可能）'));
+  flow.appendChild(el('div', 'help-flow__arrow', '↓ 表示切替'));
+  const branch = document.createElement('div');
+  branch.className = 'help-flow__branch';
+  branch.appendChild(el('div', 'help-flow__box', '文書表示'));
+  branch.appendChild(el('div', 'help-flow__box', 'スライド表示'));
+  flow.appendChild(branch);
+  wrap.appendChild(flow);
+
+  wrap.appendChild(el('h3', 'help-section__title', '読み込めるファイル'));
+  wrap.appendChild(el('p', 'help-guide__text', GUIDE_FILE_TYPES));
+  wrap.appendChild(el('p', 'help-guide__note', GUIDE_FILE_NOTE));
+
+  wrap.appendChild(el('h3', 'help-section__title', '文書表示とスライド表示の違い'));
+  const defs = document.createElement('dl');
+  defs.className = 'help-guide__defs';
+  GUIDE_DOC_VS_SLIDE.forEach((entry) => {
+    defs.appendChild(el('dt', null, entry.term));
+    defs.appendChild(el('dd', null, entry.desc));
+  });
+  wrap.appendChild(defs);
+
+  return wrap;
+}
+
+function buildPresentationPanel() {
+  const wrap = document.createElement('div');
+  wrap.className = 'help-guide';
+
+  wrap.appendChild(el('p', 'help-guide__intro', 'スライド表示の内容を、別ウィンドウを使って発表用に映すための機能。'));
+
+  wrap.appendChild(el('h3', 'help-section__title', 'プレゼン表示（外部ディスプレイの利用）'));
+  const steps = el('ol', 'help-guide__steps');
+  PRESENTATION_STEPS.forEach((text) => steps.appendChild(el('li', null, text)));
+  wrap.appendChild(steps);
+  wrap.appendChild(el('p', 'help-guide__note', 'HTTP配信（IISでの閉域環境配置）を前提としているため、外部ディスプレイへの自動移動・自動全画面化は行わない。ウィンドウの移動・全画面化は手動で行う。'));
+
+  wrap.appendChild(el('h3', 'help-section__title', '発表者ビュー'));
+  const features = el('ul', 'help-guide__list');
+  PRESENTER_VIEW_FEATURES.forEach((text) => features.appendChild(el('li', null, text)));
+  wrap.appendChild(features);
+
+  wrap.appendChild(el('h3', 'help-section__title', 'スピーカーノート'));
+  wrap.appendChild(buildItem(PRESENTATION_NOTE_EXAMPLE));
+
+  wrap.appendChild(el('h3', 'help-section__title', 'HTML出力'));
+  wrap.appendChild(el('p', 'help-guide__text', HTML_EXPORT_NOTE));
+
+  return wrap;
 }
 
 function legacyCopy(text) {
@@ -210,22 +334,24 @@ function notify(message, tone) {
   }
 }
 
+const TAB_NAMES = ['guide', 'markdown', 'marp', 'presentation'];
+
 function renderPanelsOnce() {
   if (rendered) return;
+  els.panels.guide.appendChild(buildGuidePanel());
   els.panels.markdown.appendChild(buildPanel(MARKDOWN_ITEMS));
   els.panels.marp.appendChild(buildPanel(MARP_ITEMS));
+  els.panels.presentation.appendChild(buildPresentationPanel());
   rendered = true;
 }
 
 function setTab(name) {
-  const isMarkdown = name === 'markdown';
-  els.tabButtons.markdown.classList.toggle('is-active', isMarkdown);
-  els.tabButtons.markdown.setAttribute('aria-selected', String(isMarkdown));
-  els.tabButtons.marp.classList.toggle('is-active', !isMarkdown);
-  els.tabButtons.marp.setAttribute('aria-selected', String(!isMarkdown));
-
-  els.panels.markdown.hidden = !isMarkdown;
-  els.panels.marp.hidden = isMarkdown;
+  TAB_NAMES.forEach((tabName) => {
+    const isActive = tabName === name;
+    els.tabButtons[tabName].classList.toggle('is-active', isActive);
+    els.tabButtons[tabName].setAttribute('aria-selected', String(isActive));
+    els.panels[tabName].hidden = !isActive;
+  });
 }
 
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -271,7 +397,7 @@ export function open() {
   renderPanelsOnce();
   lastFocused = document.activeElement;
   els.overlay.hidden = false;
-  setTab('markdown');
+  setTab('guide');
   document.addEventListener('keydown', handleKeydown);
   els.closeBtn.focus();
 }
@@ -288,8 +414,9 @@ export function close() {
 /**
  * @param {{
  *   openBtn: HTMLButtonElement, overlay: HTMLElement, dialog: HTMLElement, closeBtn: HTMLButtonElement,
- *   tabMarkdownBtn: HTMLButtonElement, tabMarpBtn: HTMLButtonElement,
- *   markdownPanel: HTMLElement, marpPanel: HTMLElement,
+ *   tabGuideBtn: HTMLButtonElement, tabMarkdownBtn: HTMLButtonElement, tabMarpBtn: HTMLButtonElement,
+ *   tabPresentationBtn: HTMLButtonElement,
+ *   guidePanel: HTMLElement, markdownPanel: HTMLElement, marpPanel: HTMLElement, presentationPanel: HTMLElement,
  *   onStatus?: (message: string, tone: string) => void,
  * }} elements
  */
@@ -299,15 +426,26 @@ export function init(elements) {
     overlay: elements.overlay,
     dialog: elements.dialog,
     closeBtn: elements.closeBtn,
-    tabButtons: { markdown: elements.tabMarkdownBtn, marp: elements.tabMarpBtn },
-    panels: { markdown: elements.markdownPanel, marp: elements.marpPanel },
+    tabButtons: {
+      guide: elements.tabGuideBtn,
+      markdown: elements.tabMarkdownBtn,
+      marp: elements.tabMarpBtn,
+      presentation: elements.tabPresentationBtn,
+    },
+    panels: {
+      guide: elements.guidePanel,
+      markdown: elements.markdownPanel,
+      marp: elements.marpPanel,
+      presentation: elements.presentationPanel,
+    },
     onStatus: elements.onStatus,
   };
 
   els.openBtn.addEventListener('click', open);
   els.closeBtn.addEventListener('click', close);
-  els.tabButtons.markdown.addEventListener('click', () => setTab('markdown'));
-  els.tabButtons.marp.addEventListener('click', () => setTab('marp'));
+  TAB_NAMES.forEach((tabName) => {
+    els.tabButtons[tabName].addEventListener('click', () => setTab(tabName));
+  });
 
   // 背景（オーバーレイ自身)をクリックした場合だけ閉じる。ダイアログ内のクリックが
   // 誤ってバブリングしても閉じないよう、クリックされた要素そのものを確認する。
