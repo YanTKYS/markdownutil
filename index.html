@@ -69,9 +69,33 @@
       </div>
     </section>
   </main>
-</div>
 
-<div class="presenter-hint" id="presenter-hint" hidden></div>
+  <section class="presenter-view" id="presenter-view" aria-label="発表者ビュー">
+    <div class="presenter-view__header">
+      <span class="presenter-view__title">発表者ビュー</span>
+      <span class="presenter-view__position" id="presenter-position" aria-live="polite">- / -</span>
+      <button type="button" id="presenter-end-btn" class="presenter-view__end-btn">終了</button>
+    </div>
+    <div class="presenter-view__slides">
+      <div class="presenter-view__slide-box">
+        <span class="presenter-view__slide-label">現在</span>
+        <iframe id="presenter-current-frame" class="presenter-view__frame" title="現在のスライド"></iframe>
+      </div>
+      <div class="presenter-view__slide-box">
+        <span class="presenter-view__slide-label">次</span>
+        <iframe id="presenter-next-frame" class="presenter-view__frame" title="次のスライド"></iframe>
+      </div>
+    </div>
+    <div class="presenter-view__notes">
+      <div class="presenter-view__notes-label">スピーカーノート</div>
+      <div class="presenter-view__notes-body" id="presenter-notes" aria-live="polite"></div>
+    </div>
+    <div class="presenter-view__controls">
+      <button type="button" id="presenter-prev-btn">← 前へ</button>
+      <button type="button" id="presenter-next-btn">次へ →</button>
+    </div>
+  </section>
+</div>
 
 <script type="module" src="js/app.js"></script>
 </body>

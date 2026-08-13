@@ -428,33 +428,175 @@ a:focus-visible,
   }
 }
 
-/* ---------- プレゼン表示: ツールバーと編集領域を隠し、スライドを全画面表示 ---------- */
+/* ---------- プレゼン表示: 通常編集画面を隠し、発表者ビューへ切り替える ----------
+   実際の投影はプレゼン専用の別ウィンドウ（presenter.jsがwindow.open()で開く）が担う。
+   ここではMarkdownUtil本体側を「発表中の手元画面」として構成するだけで、
+   本体をrequestFullscreen()することはしない。 */
 
-body.is-presenting .toolbar,
-body.is-presenting .pane-editor,
-body.is-presenting .pane-header-preview {
+.presenter-view {
   display: none;
 }
 
-body.is-presenting .pane-preview {
-  flex: 1 1 100%;
+body.is-presenting .toolbar,
+body.is-presenting .panes {
+  display: none;
 }
 
-body.is-presenting .preview-body,
-body.is-presenting .slide-frame {
+body.is-presenting .presenter-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--color-bg);
+}
+
+.presenter-view__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-alt);
+}
+
+.presenter-view__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.presenter-view__position {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.presenter-view__end-btn {
+  margin-left: auto;
+  appearance: none;
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.presenter-view__end-btn:hover {
+  background: var(--color-danger);
+  color: #ffffff;
+}
+
+.presenter-view__slides {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.presenter-view__slide-box {
+  position: relative;
+  flex: 1 1 50%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  overflow: hidden;
   background: #000000;
 }
 
-.presenter-hint {
-  position: fixed;
-  right: 12px;
-  bottom: 10px;
-  padding: 4px 10px;
+.presenter-view__slide-box:first-child {
+  flex: 1 1 62%;
+}
+
+.presenter-view__slide-label {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 2;
+  padding: 1px 8px;
   border-radius: 3px;
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(0, 0, 0, 0.55);
   color: #ffffff;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  z-index: 10;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.presenter-view__frame {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  background: #000000;
+}
+
+.presenter-view__notes {
+  flex: 0 0 auto;
+  max-height: 22vh;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-alt);
+}
+
+.presenter-view__notes-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.presenter-view__notes-body {
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.presenter-view__controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.presenter-view__controls button {
+  appearance: none;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 6px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.presenter-view__controls button:hover:not(:disabled) {
+  background: var(--color-bg-alt);
+}
+
+.presenter-view__controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.presenter-view button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+@media (max-width: 860px) {
+  .presenter-view__slides {
+    flex-direction: column;
+  }
 }
