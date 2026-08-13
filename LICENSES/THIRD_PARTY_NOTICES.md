@@ -27,9 +27,46 @@ MarkdownUtilが同梱している外部ライブラリの一覧です。いず�
 | 配置場所 | `vendor/markdown-it/`（ブラウザ向けビルド済みESM: `markdown-it.esm.min.mjs`） |
 | ライセンス全文 | `vendor/markdown-it/LICENSE`、`LICENSES/markdown-it-LICENSE.txt` |
 
+## @marp-team/marp-core（v0.2.0で追加）
+
+| 項目 | 内容 |
+| --- | --- |
+| ライブラリ名 | `@marp-team/marp-core` |
+| バージョン | 4.4.0 |
+| ライセンス | MIT License（Copyright (c) 2018 Marp team） |
+| 入手元 | npm レジストリ: https://www.npmjs.com/package/@marp-team/marp-core （ソース: https://github.com/marp-team/marp-core） |
+| 利用目的 | Marp Markdownをスライド（HTML/CSS/SVG）へレンダリングするため（スライドプレビュー・HTML出力・印刷の元データ生成） |
+| 配置場所 | `vendor/marp/`（自前ビルドしたブラウザ向けESMバンドル: `marp-core.bundle.mjs`） |
+| ライセンス全文 | `vendor/marp/LICENSE`、`LICENSES/marp-core-LICENSE.txt` |
+| 備考 | [`slide`（iSlide）](https://github.com/YanTKYS/slide)リポジトリで検証済みの初期化オプション（`emoji: { shortcode: true, unicode: false }`、`math: 'mathjax'`）を踏襲し、絵文字画像化（twemoji CDN）を避けている。バンドル自体はMarkdownUtil向けに`esbuild`でESM形式として再ビルドしたもので、iSlideのビルド済みファイルをそのまま転用してはいない。 |
+
+`@marp-team/marp-core`は内部で以下のライブラリをバンドルしている。いずれも`vendor/marp/marp-core.bundle.mjs`に
+含まれており、個別のファイルとしては配置していないが、ライセンス全文を`LICENSES/marp-core-dependencies/`に
+同梱している。
+
+| ライブラリ名 | ライセンス | ライセンス全文 |
+| --- | --- | --- |
+| `@marp-team/marpit` | MIT | `LICENSES/marp-core-dependencies/marpit-LICENSE.txt` |
+| `@marp-team/marpit-svg-polyfill` | MIT | `LICENSES/marp-core-dependencies/marpit-svg-polyfill-LICENSE.txt` |
+| `highlight.js` | BSD-3-Clause | `LICENSES/marp-core-dependencies/highlight.js-LICENSE.txt` |
+| `katex` | MIT | `LICENSES/marp-core-dependencies/katex-LICENSE.txt` |
+| `mathjax-full` | Apache-2.0 | `LICENSES/marp-core-dependencies/mathjax-full-LICENSE.txt` |
+| `postcss-selector-parser` | MIT | `LICENSES/marp-core-dependencies/postcss-selector-parser-LICENSE.txt` |
+| `xss` | MIT | `LICENSES/marp-core-dependencies/xss-LICENSE.txt` |
+
+## slide / iSlide との関係
+
+MarkdownUtilのスライドプレビュー機能は、[`slide`リポジトリ](https://github.com/YanTKYS/slide)の
+`iSlide`（MIT License）で検証済みだったMarp Core利用方式（初期化オプション、iframe +
+`postMessage`によるプレビュー分離、リモートWebフォント`@import`の除去、HTML出力・印刷・
+プレゼン表示の組み立て方）を参考に、MarkdownUtil向けへ再構成して実装した。iSlideのHTML/CSSや
+エディタ・ファイル入出力・localStorage自動保存・splitter等はそのまま移植しておらず、
+MarkdownUtil自身のUI・データフロー（v0.1.0のAnyDoc変換・編集・保存等）に合わせて
+`js/slide-preview.js`として書き直している。
+
 ## それ以外の依存
 
-上記2点以外の外部ライブラリは使用していません。ファイル保存・クリップボードコピー等は
+上記以外の外部ライブラリは使用していません。ファイル保存・クリップボードコピー等は
 ブラウザ標準API（`Blob` / `URL.createObjectURL` / `Clipboard API` など）のみで実装しています。
 
 ## 追加時の方針

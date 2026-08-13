@@ -44,13 +44,34 @@
     </section>
 
     <section class="pane pane-preview" aria-label="プレビュー領域">
-      <div class="pane-header">
-        <span class="pane-label" id="preview-label">プレビュー</span>
+      <div class="pane-header pane-header-preview">
+        <span class="pane-label">プレビュー</span>
+        <div class="mode-toggle" role="tablist" aria-label="プレビュー切替">
+          <button type="button" id="mode-doc-btn" class="mode-btn is-active" role="tab" aria-selected="true">文書</button>
+          <button type="button" id="mode-slide-btn" class="mode-btn" role="tab" aria-selected="false">スライド</button>
+        </div>
+        <div class="slide-toolbar" id="slide-toolbar" hidden>
+          <span class="slide-status" id="slide-status" aria-live="polite"></span>
+          <label class="slide-toolbar-label" for="slide-theme-select">テーマ</label>
+          <select id="slide-theme-select" aria-label="スライドテーマ">
+            <option value="default">default</option>
+            <option value="gaia">gaia</option>
+            <option value="uncover">uncover</option>
+          </select>
+          <button type="button" id="slide-export-html-btn">HTML出力</button>
+          <button type="button" id="slide-print-btn">印刷</button>
+          <button type="button" id="slide-present-btn">プレゼン表示</button>
+        </div>
       </div>
-      <div class="preview" id="preview" role="region" aria-labelledby="preview-label"></div>
+      <div class="preview-body">
+        <div class="preview" id="preview" role="region" aria-label="Markdownプレビュー"></div>
+        <iframe class="slide-frame" id="slide-frame" title="スライドプレビュー" hidden></iframe>
+      </div>
     </section>
   </main>
 </div>
+
+<div class="presenter-hint" id="presenter-hint" hidden></div>
 
 <script type="module" src="js/app.js"></script>
 </body>
