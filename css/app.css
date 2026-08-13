@@ -864,3 +864,34 @@ body.is-presenting .presenter-view {
   display: flex;
   gap: 12px;
 }
+
+.help-guide__sample-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+}
+
+.help-guide__sample-btn {
+  appearance: none;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.help-guide__sample-btn:hover {
+  background: var(--color-bg-alt);
+}
+
+.help-guide__sample-btn:active {
+  background: #e5e7ea;
+}
+
+.help-guide__sample-btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
