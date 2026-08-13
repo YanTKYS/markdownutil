@@ -270,6 +270,11 @@ a:focus-visible,
   font-variant-numeric: tabular-nums;
 }
 
+.slide-status[data-tone="error"] {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
 .slide-toolbar select,
 .slide-toolbar button {
   appearance: none;

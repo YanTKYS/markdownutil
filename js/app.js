@@ -98,12 +98,23 @@ function syncThemeSelect() {
   slideThemeSelect.value = slidePreview.THEMES.includes(theme) ? theme : 'default';
 }
 
-function refreshSlidePreview() {
-  const { slideCount, error } = slidePreview.render(editor.value);
-  if (error) {
-    setStatus(`スライドMarkdownを解析できませんでした: ${error}`, 'error');
+// スライドの状態（枚数・エラー）はスライドツールバー内に表示する。
+// 描画のたびに上書きされるため、エラーが解消すれば自動的に消える。
+function setSlideStatus(text, isError) {
+  slideStatus.textContent = text;
+  if (isError) {
+    slideStatus.dataset.tone = 'error';
+  } else {
+    delete slideStatus.dataset.tone;
   }
-  slideStatus.textContent = slideCount > 0 ? `${slideCount}枚` : '';
+}
+
+async function refreshSlidePreview() {
+  // Marp Coreの初回読み込み中だけ表示される（読み込み済みなら描画前に上書きされる）。
+  setSlideStatus('スライドを準備しています...', false);
+
+  const { slideCount, error } = await slidePreview.render(editor.value);
+  setSlideStatus(error || (slideCount > 0 ? `${slideCount}枚` : ''), Boolean(error));
   syncThemeSelect();
 }
 
@@ -253,6 +264,13 @@ function setupDragAndDrop() {
 
 /* ---------- スライド専用操作 ---------- */
 
+/** スライドが未描画のうちは、出力・印刷・プレゼン表示を実行しない。 */
+function hasSlides() {
+  if (slidePreview.getSlideCount() > 0) return true;
+  setStatus('表示できるスライドがありません。Markdownを入力してください。', 'error');
+  return false;
+}
+
 function setupSlideControls() {
   slidePreview.init(slideFrame, presenterHint);
 
@@ -268,24 +286,21 @@ function setupSlideControls() {
   });
 
   slideExportBtn.addEventListener('click', () => {
+    if (!hasSlides()) return;
     const title = titleFromSaveFilename();
-    const html = slidePreview.buildStandaloneHtml(title, false);
-    if (!html) {
-      setStatus('出力できるスライドがありません。', 'error');
-      return;
-    }
-    downloadTextFile(`${title}.html`, html, 'text/html');
+    downloadTextFile(`${title}.html`, slidePreview.buildStandaloneHtml(title, false), 'text/html');
     setStatus(`${title}.html を保存しました`, 'success');
   });
 
   slidePrintBtn.addEventListener('click', () => {
-    const result = slidePreview.openPrintWindow(titleFromSaveFilename());
-    if (!result.opened) {
+    if (!hasSlides()) return;
+    if (!slidePreview.openPrintWindow(titleFromSaveFilename())) {
       setStatus('印刷用ウィンドウを開けませんでした。ポップアップの許可を確認してください。', 'error');
     }
   });
 
   slidePresentBtn.addEventListener('click', () => {
+    if (!hasSlides()) return;
     slidePreview.enterPresentation();
   });
 }
