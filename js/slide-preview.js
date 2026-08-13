@@ -9,8 +9,6 @@
 // MarkdownUtil向けに再構成したもの。iSlide側のエディタ・ファイル入出力・localStorage自動保存・
 // splitter等は持ち込まない。
 
-import { Marp } from '../vendor/marp/marp-core.bundle.mjs';
-
 export const THEMES = ['default', 'gaia', 'uncover'];
 
 const FRONT_MATTER_PATTERN = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(\r?\n|$)/;
@@ -123,7 +121,9 @@ body.is-presenting #slides .marpit > svg[data-marpit-svg].is-current {
   });
 
   // iframe側にフォーカスがあってもプレゼン操作を親側で処理できるように転送する。
+  // Ctrl/Alt等との組み合わせはブラウザの操作（Ctrl+P等）なので転送しない。
   window.addEventListener('keydown', function (event) {
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
     post({ type: 'keydown', key: event.key, shiftKey: event.shiftKey });
   });
   window.addEventListener('click', function () {
@@ -135,27 +135,34 @@ body.is-presenting #slides .marpit > svg[data-marpit-svg].is-current {
 </script>
 </body></html>`;
 
-let marp = null;
+let marpPromise = null;
 let frame = null;
 let presenterHintEl = null;
 let frameReady = false;
-let pendingMessage = null;
 let lastRendered = null; // { html, css }
 let slideCount = 0;
 let slideIndex = 0;
 let presenting = false;
 
-function ensureMarp() {
-  if (!marp) {
-    marp = new Marp({
-      // 絵文字を画像(twemoji CDN)へ置き換えず、フォントの絵文字として表示する
-      emoji: { shortcode: true, unicode: false },
-      // KaTeXは外部CSS/フォントを必要とするため、同梱できるMathJaxを使う
-      math: 'mathjax',
-      script: true,
-    });
+// Marp Coreのバンドルは約3.8MBあり、起動時に読み込むと遅い端末では
+// 数秒間ボタンが反応しなくなる。文書プレビューだけを使う場合には不要なので、
+// スライドモードが初めて使われたときに動的importで読み込む。
+function loadMarp() {
+  if (!marpPromise) {
+    marpPromise = import('../vendor/marp/marp-core.bundle.mjs')
+      .then(({ Marp }) => new Marp({
+        // 絵文字を画像(twemoji CDN)へ置き換えず、フォントの絵文字として表示する
+        emoji: { shortcode: true, unicode: false },
+        // KaTeXは外部CSS/フォントを必要とするため、同梱できるMathJaxを使う
+        math: 'mathjax',
+        script: true,
+      }))
+      .catch((error) => {
+        marpPromise = null; // 失敗を保持し続けると再試行できなくなるため戻す
+        throw error;
+      });
   }
-  return marp;
+  return marpPromise;
 }
 
 function removeRemoteImports(css) {
@@ -167,12 +174,18 @@ function countSlides(html) {
   return matches ? matches.length : 0;
 }
 
-function sendToFrame(message) {
+function postToFrame(message) {
   if (frameReady && frame && frame.contentWindow) {
     frame.contentWindow.postMessage(message, '*');
-  } else {
-    pendingMessage = message;
   }
+}
+
+// iframeの準備が整った時点で現在の状態をまとめて送り直す。
+// 準備前の描画要求を貯め込む必要がなく、iframeが読み込み直された場合にも復元できる。
+function syncFrame() {
+  if (lastRendered) postToFrame({ type: 'render', ...lastRendered });
+  postToFrame({ type: 'present', presenting });
+  postToFrame({ type: 'goto', index: slideIndex });
 }
 
 function updatePresenterHint() {
@@ -185,26 +198,36 @@ function updatePresenterHint() {
   }
 }
 
+/** プレゼン表示中のキー操作。処理したキーはtrueを返す（呼び出し側で既定動作を抑止する）。 */
 function handlePresentationKey(key, shiftKey) {
-  if (key === 'Escape') {
-    exitPresentation();
-  } else if (key === 'ArrowRight' || key === 'ArrowDown' || key === 'PageDown' || key === 'Enter') {
-    gotoSlide(slideIndex + 1);
-  } else if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'PageUp' || key === 'Backspace') {
-    gotoSlide(slideIndex - 1);
-  } else if (key === ' ') {
-    gotoSlide(shiftKey ? slideIndex - 1 : slideIndex + 1);
-  } else if (key === 'Home') {
-    gotoSlide(0);
-  } else if (key === 'End') {
-    gotoSlide(slideCount - 1);
+  switch (key) {
+    case 'Escape':
+      exitPresentation();
+      return true;
+    case 'ArrowRight': case 'ArrowDown': case 'PageDown': case 'Enter':
+      gotoSlide(slideIndex + 1);
+      return true;
+    case 'ArrowLeft': case 'ArrowUp': case 'PageUp': case 'Backspace':
+      gotoSlide(slideIndex - 1);
+      return true;
+    case ' ':
+      gotoSlide(shiftKey ? slideIndex - 1 : slideIndex + 1);
+      return true;
+    case 'Home':
+      gotoSlide(0);
+      return true;
+    case 'End':
+      gotoSlide(slideCount - 1);
+      return true;
+    default:
+      return false;
   }
 }
 
 function gotoSlide(index) {
   if (slideCount === 0) return;
   slideIndex = Math.min(Math.max(index, 0), slideCount - 1);
-  sendToFrame({ type: 'goto', index: slideIndex });
+  postToFrame({ type: 'goto', index: slideIndex });
   updatePresenterHint();
 }
 
@@ -215,10 +238,7 @@ function onFrameMessage(event) {
 
   if (message.type === 'ready') {
     frameReady = true;
-    if (pendingMessage) {
-      sendToFrame(pendingMessage);
-      pendingMessage = null;
-    }
+    syncFrame();
   } else if (message.type === 'keydown') {
     if (presenting) handlePresentationKey(message.key, message.shiftKey);
   } else if (message.type === 'click') {
@@ -239,8 +259,10 @@ export function init(iframeEl, presenterHintOptionalEl) {
   window.addEventListener('message', onFrameMessage);
   window.addEventListener('keydown', (event) => {
     if (!presenting) return;
-    handlePresentationKey(event.key, event.shiftKey);
-    event.preventDefault();
+    // Ctrl+P（印刷）等のブラウザ操作を奪わないよう、修飾キー付きは対象外とする。
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    // スライド操作に使うキーだけ既定動作を抑止する（F5などはそのまま動く）。
+    if (handlePresentationKey(event.key, event.shiftKey)) event.preventDefault();
   });
   document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement && presenting) {
@@ -251,24 +273,37 @@ export function init(iframeEl, presenterHintOptionalEl) {
 
 /**
  * MarkdownをMarpでレンダリングし、iframeへ反映する。
+ * エラーは利用者向けの日本語メッセージへ正規化して返す（表示方法は呼び出し側の責務）。
  * @param {string} markdown
- * @returns {{ slideCount: number, error: string|null }}
+ * @returns {Promise<{ slideCount: number, error: string|null }>}
  */
-export function render(markdown) {
-  let rendered;
+export async function render(markdown) {
+  let marp;
   try {
-    rendered = ensureMarp().render(markdown || '');
-  } catch (error) {
-    return { slideCount, error: error && error.message ? error.message : String(error) };
+    marp = await loadMarp();
+  } catch {
+    return { slideCount: 0, error: 'スライド表示機能を読み込めませんでした。ページを再読み込みしてください。' };
   }
 
-  const css = removeRemoteImports(rendered.css);
-  lastRendered = { html: rendered.html, css };
+  let rendered;
+  try {
+    rendered = marp.render(markdown || '');
+  } catch {
+    // front matterのYAMLが壊れている場合など。直前のプレビューはそのまま残す。
+    return { slideCount, error: 'Markdownを解析できませんでした。front matterの書式を確認してください。' };
+  }
+
+  lastRendered = { html: rendered.html, css: removeRemoteImports(rendered.css) };
   slideCount = countSlides(rendered.html);
   slideIndex = Math.min(slideIndex, Math.max(slideCount - 1, 0));
 
-  sendToFrame({ type: 'render', html: rendered.html, css });
+  postToFrame({ type: 'render', ...lastRendered });
   return { slideCount, error: null };
+}
+
+/** 現在レンダリングされているスライドの枚数。 */
+export function getSlideCount() {
+  return slideCount;
 }
 
 /** front matterに書かれた現在のテーマ名を読み取る（未指定ならば空文字）。 */
@@ -291,12 +326,19 @@ export function writeTheme(markdown, theme) {
   }
 
   const body = frontMatter[1];
-  const updated = /^theme[ \t]*:.*$/m.test(body)
-    ? body.replace(/^theme[ \t]*:.*$/m, () => `theme: ${theme}`)
-    : (body === '' ? `theme: ${theme}` : `${body}\ntheme: ${theme}`);
-
+  // front matterは必ず先頭から始まる（正規表現が^に固定されている）ため、
+  // その中身は「1行目の改行の直後」から body.length 文字ぶん。そこだけを差し替える。
   const bodyStart = markdown.indexOf('\n') + 1;
-  return markdown.slice(0, bodyStart) + updated + markdown.slice(bodyStart + body.length);
+  return markdown.slice(0, bodyStart) + withThemeLine(body, theme) + markdown.slice(bodyStart + body.length);
+}
+
+/** front matterの中身に`theme:`行を反映する（既にあれば置換、無ければ追記）。 */
+function withThemeLine(body, theme) {
+  const themeLine = `theme: ${theme}`;
+  if (/^theme[ \t]*:.*$/m.test(body)) {
+    return body.replace(/^theme[ \t]*:.*$/m, () => themeLine);
+  }
+  return body === '' ? themeLine : `${body}\n${themeLine}`;
 }
 
 function slideSize(html) {
@@ -366,22 +408,25 @@ export function buildStandaloneHtml(title, autoPrint) {
   ].join('\n');
 }
 
-/** ブラウザの印刷機能で開けるよう、印刷用ウィンドウを新規タブで開く。 */
+/**
+ * ブラウザの印刷機能で開けるよう、印刷用ウィンドウを新規タブで開く。
+ * @returns {boolean} ウィンドウを開けたか（ポップアップブロック時はfalse）
+ */
 export function openPrintWindow(title) {
   const html = buildStandaloneHtml(title, true);
-  if (!html) return { opened: false };
+  if (!html) return false;
 
   const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
   const printWindow = window.open(url, '_blank');
   window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 
-  return { opened: Boolean(printWindow) };
+  return Boolean(printWindow);
 }
 
 export function enterPresentation() {
   presenting = true;
   document.body.classList.add('is-presenting');
-  sendToFrame({ type: 'present', presenting: true });
+  postToFrame({ type: 'present', presenting: true });
   updatePresenterHint();
 
   if (document.documentElement.requestFullscreen) {
@@ -394,14 +439,10 @@ export function enterPresentation() {
 export function exitPresentation() {
   presenting = false;
   document.body.classList.remove('is-presenting');
-  sendToFrame({ type: 'present', presenting: false });
+  postToFrame({ type: 'present', presenting: false });
   updatePresenterHint();
 
   if (document.fullscreenElement && document.exitFullscreen) {
     document.exitFullscreen().catch(() => {});
   }
-}
-
-export function isPresenting() {
-  return presenting;
 }
