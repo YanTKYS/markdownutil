@@ -7,6 +7,7 @@
 import { convertToMarkdown, isTextFile, getExtension, ConversionError, preload, PICKER_EXTENSIONS_HINT } from './converter.js';
 import { updatePreview } from './preview.js';
 import * as slidePreview from './slide-preview.js';
+import * as presenter from './presenter.js';
 
 const openBtn = document.getElementById('open-btn');
 const fileInput = document.getElementById('file-input');
@@ -27,7 +28,14 @@ const slideExportBtn = document.getElementById('slide-export-html-btn');
 const slidePrintBtn = document.getElementById('slide-print-btn');
 const slidePresentBtn = document.getElementById('slide-present-btn');
 const slideFrame = document.getElementById('slide-frame');
-const presenterHint = document.getElementById('presenter-hint');
+
+const presenterCurrentFrame = document.getElementById('presenter-current-frame');
+const presenterNextFrame = document.getElementById('presenter-next-frame');
+const presenterNotes = document.getElementById('presenter-notes');
+const presenterPosition = document.getElementById('presenter-position');
+const presenterPrevBtn = document.getElementById('presenter-prev-btn');
+const presenterNextBtn = document.getElementById('presenter-next-btn');
+const presenterEndBtn = document.getElementById('presenter-end-btn');
 
 const INITIAL_STATUS = 'ファイルを開くか、Markdownをドラッグ&ドロップしてください。';
 
@@ -282,7 +290,16 @@ function hasSlides() {
 }
 
 function setupSlideControls() {
-  slidePreview.init(slideFrame, presenterHint);
+  slidePreview.init(slideFrame);
+  presenter.init({
+    currentFrame: presenterCurrentFrame,
+    nextFrame: presenterNextFrame,
+    notesEl: presenterNotes,
+    positionEl: presenterPosition,
+    prevBtn: presenterPrevBtn,
+    nextBtn: presenterNextBtn,
+    endBtn: presenterEndBtn,
+  });
 
   modeDocBtn.addEventListener('click', () => switchMode('doc'));
   modeSlideBtn.addEventListener('click', () => switchMode('slide'));
@@ -311,7 +328,9 @@ function setupSlideControls() {
 
   slidePresentBtn.addEventListener('click', () => {
     if (!hasSlides()) return;
-    slidePreview.enterPresentation();
+    if (!presenter.start()) {
+      setStatus('プレゼン用ウィンドウを開けませんでした。ポップアップの許可を確認してください。', 'error');
+    }
   });
 }
 
