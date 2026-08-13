@@ -24,10 +24,15 @@ const POPUP_EXTRA_HTML = `<style>
   font-family: -apple-system, "Segoe UI", "Hiragino Sans", Meiryo, sans-serif;
 }
 .mu-fullscreen-btn:hover { background: rgba(0, 0, 0, 0.75); }
+/* 全画面化した後は投影内容をスライドだけにする。Escで解除できるため残す必要は薄い。 */
+:fullscreen .mu-fullscreen-btn { display: none; }
 </style>
 <button type="button" class="mu-fullscreen-btn" id="mu-fullscreen-btn">⛶ 全画面</button>
 <script>
-document.getElementById('mu-fullscreen-btn').addEventListener('click', function () {
+document.getElementById('mu-fullscreen-btn').addEventListener('click', function (event) {
+  // ドキュメント全体のclickリスナー（クリックで次のスライドへ進む）へ伝播すると、
+  // 全画面化と同時にスライドが進んでしまうため止める。
+  event.stopPropagation();
   if (document.fullscreenElement) {
     document.exitFullscreen();
   } else if (document.documentElement.requestFullscreen) {
