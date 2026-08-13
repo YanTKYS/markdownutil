@@ -24,7 +24,10 @@ v0.1.0は、文書変換エンジン [AnyDoc](https://github.com/firecrawl/anydo
 
 ## 利用方法
 
-1. `index.html` をブラウザで開く（またはIIS等で配信されたURLへアクセスする）
+1. IIS等の静的Webサーバへ`markdownutil/`フォルダを配置し、配信されたURLへブラウザでアクセスする
+   （`js/app.js`はESモジュールとしてimportを使って構成されているため、`file://`で`index.html`を
+   直接開くとブラウザのCORS制約によりモジュールを読み込めません。開発時にローカルで確認する
+   場合も、`python3 -m http.server`等の簡易HTTPサーバ経由で開いてください）
 2. ツールバーの「ファイルを開く」から文書を選択する、または編集領域へファイルをドラッグ&ドロップする
 3. 対応文書であれば自動的にMarkdownへ変換される（`.md` / `.markdown` / `.txt` はそのまま読み込まれる）
 4. 左側のMarkdown編集領域で内容を必要に応じて編集する
@@ -115,29 +118,45 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
 静的Webサーバの公開フォルダへ配置するだけで利用できます。サーバ側での文書変換処理は
 一切行わないため、追加のアプリケーションプール設定やランタイムのインストールは不要です。
 
-### `.wasm` の配信について
+### `.wasm` と `.mjs` の配信について
 
-- `vendor/anydoc/anydoc_wasm_bg.wasm` は静的ファイルとしてそのまま配信できます。
+本ツールは`.wasm`（AnyDoc本体）に加えて、`.mjs`（markdown-itのビルド済みESモジュール:
+`vendor/markdown-it/markdown-it.esm.min.mjs`）も静的ファイルとして配信します。どちらも
+IIS側で拡張子が未登録だと問題になるため、実機配置時は両方を確認してください。
+
+- `vendor/anydoc/anydoc_wasm_bg.wasm` および `vendor/markdown-it/markdown-it.esm.min.mjs` は
+  いずれも静的ファイルとしてそのまま配信できます。
 - `js/app.js` はESモジュール（`<script type="module">`）としてブラウザから直接読み込まれ、
-  AnyDocの初期化コード（`vendor/anydoc/anydoc_wasm.js`）は自分自身のファイルパスを基準に
+  `js/converter.js`・`js/preview.js`もESモジュールのimportで読み込まれます。AnyDocの初期化
+  コード（`vendor/anydoc/anydoc_wasm.js`）は自分自身のファイルパスを基準に
   `anydoc_wasm_bg.wasm` を相対パスで取得します。そのため `markdownutil/` フォルダごと配置
   場所（サブフォルダ・仮想ディレクトリ）を変更しても、内部の相対配置さえ崩さなければ
   正常に動作します。
-- 望ましいMIME typeは `application/wasm` です。IISのバージョンやサーバ設定によっては
-  `.wasm` にこのMIME typeが登録されておらず、`application/octet-stream` 等で配信される
-  場合があります。その場合もAnyDoc側に自動フォールバック処理があるため動作はしますが
-  （`WebAssembly.instantiateStreaming` が使えず `WebAssembly.instantiate` にフォールバック
-  し、初期化がわずかに遅くなります）、可能であれば以下のいずれかの方法でMIME typeを
-  登録することを推奨します。
-  - IISマネージャーの「MIME の種類」で、拡張子 `.wasm` に種類 `application/wasm` を追加する
-  - 既存の`web.config`がある場合は、`<staticContent>` セクションへ以下を追記する
+- `.wasm`の望ましいMIME typeは `application/wasm`、`.mjs`は`text/javascript`です。
+  IISのバージョンやサーバ設定によっては、これらの拡張子がMIMEマップに未登録の場合があります。
+  - `.wasm`が`application/octet-stream`等の誤ったMIME typeで配信された場合、AnyDoc側に
+    自動フォールバック処理があるため動作はしますが（`WebAssembly.instantiateStreaming`が
+    使えず`WebAssembly.instantiate`にフォールバックし、初期化がわずかに遅くなります）、
+    MIME typeの登録を推奨します。
+  - `.mjs`が未登録の場合、IISは拡張子そのものを認識できず**404**を返すことがあり、この場合は
+    フォールバックが効かずプレビュー機能全体が動作しません（ブラウザのモジュール読み込みは
+    MIME typeの厳格チェックも行うため、誤ったMIME typeで配信された場合も同様に失敗します）。
+    そのため`.mjs`のMIME設定は`.wasm`以上に確認が必要です。
+  - 実機IISでの配置後は、`.wasm`・`.mjs`双方について、ブラウザの開発者ツールのNetworkタブで
+    200応答と想定どおりのContent-Typeで返っていることを必ず確認してください。
+  - 登録方法は次のいずれかです。
+    - IISマネージャーの「MIME の種類」で、拡張子`.wasm`に`application/wasm`、拡張子`.mjs`に
+      `text/javascript`を追加する
+    - 既存の`web.config`がある場合は、`<staticContent>`セクションへ以下を追記する
 
-    ```xml
-    <staticContent>
-      <remove fileExtension=".wasm" />
-      <mimeMap fileExtension=".wasm" mimeType="application/wasm" />
-    </staticContent>
-    ```
+      ```xml
+      <staticContent>
+        <remove fileExtension=".wasm" />
+        <mimeMap fileExtension=".wasm" mimeType="application/wasm" />
+        <remove fileExtension=".mjs" />
+        <mimeMap fileExtension=".mjs" mimeType="text/javascript" />
+      </staticContent>
+      ```
 
   既存のIIS設定・`web.config`と競合する可能性があるため、本リポジトリでは`web.config`を
   同梱していません。必要に応じて配置環境側で追加してください。
@@ -173,8 +192,11 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
   （AnyDocの`toDocument`はアセット情報を保持しますが、v0.1.0の変換フローでは
   `toMarkdownBytes`によるMarkdown直接出力のみを利用しています）。
 - パスワード保護・暗号化された文書は変換できません。
-- v0.1.0はAnyDocの実用性確認を兼ねた試験版であり、対応形式のうち代表的なものしか
-  実文書で検証していません（「対応形式」の章を参照）。
+- v0.1.0はAnyDocの実用性確認を兼ねた試験版です。現時点のテスト（`docs/TESTING.md`）は
+  プログラムで生成した単純なサンプル文書による基本的な変換性能の確認にとどまり、結合セルを
+  多用した帳票Word、図形を多く含むPowerPoint、複雑なレイアウトのPDFといった実業務文書での
+  変換品質はまだ確認できていません。IIS実機配置後、庁内の実文書を用いた検証を別途行う
+  予定です。
 - 複数ファイルの一括変換、OCR、AIによる補正、Markdown構文補完、WYSIWYG編集、複数文書の
   タブ管理、自動保存、履歴管理、クラウド保存などはv0.1.0の対象外です。
 
