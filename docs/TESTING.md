@@ -171,7 +171,7 @@ front matterが自動挿入されないこと（Markdown本文がモード切替
 
 | # | 内容 | 結果 |
 | --- | --- | --- |
-| 15 | 文書／スライド切替 | OK。切替時にMarkdown本文は変化せず、双方のプレビューが即座に更新される |
+| 15 | 文書／スライド切替 | OK。切替時にMarkdown本文は変化せず、双方のプレビューが即座に更新される。v0.2.1で、文書モード時に`#slide-toolbar`等の`computed display`が実際に`none`になっていること（属性だけでなく描画結果）も確認するよう強化（詳細は「v0.2.1」参照） |
 | 16 | HTML出力 | OK。`sample.html`としてダウンロードされ、内容に`data-marpit-svg`のSVGとCSSが内包されていること、リモート`@import`が含まれないことを確認 |
 | 17 | 印刷 | OK。「印刷」ボタンでBlob URLの新規タブ（印刷用スタンドアロンHTML、`window.print()`を自動実行）が開くことを確認 |
 | 18 | プレゼン表示 | OK。ツールバー・編集領域が非表示になり、スライドが全画面表示、右下に「1 / 2」等のヒントが表示される |
@@ -211,3 +211,43 @@ iframe内に実際に反映されたCSSを読み取って確認した点は、�
 - スライド用のテスト対象はMarp記法として典型的な内容（見出し・箇条書き・表・コードブロック・
   テーマ切替）にとどまり、数式（MathJax）・画像埋め込み・スピーカーノート等、Marpのより
   高度な機能は今回個別に検証していない。
+
+## v0.2.1（スライドモード表示制御の回帰修正）
+
+実施日: 2026-08-13
+方法: v0.2.0と同じくPlaywright経由のChromiumで確認。新機能は追加せず、CSSの1箇所を修正した。
+
+### 修正した問題
+
+`css/app.css`の`.slide-toolbar`が`display: flex`を無条件に指定していたため、
+`index.html`側の`hidden`属性（HTMLの`hidden`属性はUAスタイルシートの
+`[hidden] { display: none }`によって非表示になる）が、詳細度に関係なく作者スタイルシートの
+`display`指定によって上書きされ、文書モードでもスライド専用ツールバー（テーマ・HTML出力・
+印刷・プレゼン表示）が実際には表示されてしまう状態だった。v0.2.0時点のテストは`hidden`
+「属性」の有無（`getAttribute('hidden')`）のみを確認しており、実際の描画結果
+（`getComputedStyle().display`）までは確認していなかったため、この問題を検出できていなかった。
+
+`.slide-toolbar`から`display: flex`を外し、`.slide-toolbar:not([hidden]) { display: flex; }`
+へ変更することで、`hidden`属性がある限り確実に非表示になるようにした。同様のパターンが
+他の要素（`#preview` / `#slide-frame` / `#presenter-hint`）にも無いか確認したが、これらは
+`display`を明示的に指定していないため、`hidden`属性は元から正しく機能していた。
+
+### 追加確認したテスト
+
+| # | 内容 | 結果 |
+| --- | --- | --- |
+| 1 | 文書モード時、`#slide-toolbar`の`hidden`属性が付与されている | OK |
+| 2 | 文書モード時、`#slide-toolbar`の`getComputedStyle().display`が`none`である（修正前は`flex`のまま表示されていた） | OK（修正後） |
+| 3 | 文書モード時、テーマ選択欄・HTML出力・印刷・プレゼン表示ボタンが`isVisible()`で不可視 | OK |
+| 4 | スライドモードへ切替後、`#slide-toolbar`の`getComputedStyle().display`が`flex`になり、各操作ボタンが`isVisible()`で可視になる | OK |
+| 5 | スライドモードから文書モードへ戻すと、再び`display: none`・不可視に戻る | OK |
+| 6 | `#preview` / `#slide-frame`のモード切替時の`getComputedStyle().display`（`none`⇔表示）も合わせて確認 | OK（元から問題なし） |
+| 7 | v0.2.0で実施した全テスト（AnyDoc変換・通常プレビュー・コピー・保存・D&D・スライド表示・テーマ・HTML出力・印刷・プレゼン表示・キーボード操作・クリア） | OK（回帰なし） |
+| 8 | 外部通信・consoleエラー | 0件（回帰なし） |
+
+### v0.2.1まとめ
+
+スライド専用ツールバーが文書モードでも実際には表示されてしまう回帰を修正した。原因は
+CSSの`display`指定がHTMLの`hidden`属性を上書きしていたことで、`:not([hidden])`で
+スコープすることで解決した。今後同様の問題を早期に検出できるよう、モード切替の確認は
+DOM属性だけでなく`getComputedStyle().display`と`isVisible()`の両方で行うようにした。
