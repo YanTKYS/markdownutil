@@ -6,18 +6,27 @@ Markdown編集・Markdownプレビューを1画面にまとめたブラウザツ
 Word・Excel・PowerPoint・PDF・CSV・RTF・OpenDocument等の文書を、サーバへアップロードせず
 ブラウザ内だけでMarkdownへ変換します。文書内容はブラウザの外へ一切送信されません。
 
-v0.1.0は、文書変換エンジン [AnyDoc](https://github.com/firecrawl/anydoc) のWebAssembly版
-（`@firecrawl/anydoc-wasm`）が実際の業務文書で実用に耐えるかを検証することを主目的とした試験版
-ですが、単なる技術検証にとどまらず「開く → 変換 → 編集 → プレビュー → コピー／保存」まで
-一連の操作ができる実用可能な状態を目指しています。
+v0.1.0では、文書変換エンジン [AnyDoc](https://github.com/firecrawl/anydoc) のWebAssembly版
+（`@firecrawl/anydoc-wasm`）が実際の業務文書で実用に耐えるかを検証することを主目的とした
+試験版として、「開く → 変換 → 編集 → プレビュー → コピー／保存」まで一連の操作ができる
+状態を実装しました。
+
+v0.2.0では、右ペインのプレビューに通常のMarkdown表示（文書モード）に加えて、
+[Marp Core](https://github.com/marp-team/marp-core) によるスライドプレビュー（スライドモード）を
+追加しました。同じMarkdownを、通常の文書としても、Marp記法によるスライドとしても確認できます。
+スライド機能は [`slide`リポジトリ](https://github.com/YanTKYS/slide) の `iSlide` で検証済みの
+実装方式を参考にしています（詳細は「スライドプレビュー」章と
+[`LICENSES/THIRD_PARTY_NOTICES.md`](LICENSES/THIRD_PARTY_NOTICES.md) を参照）。
 
 ## 特徴
 
 - AnyDoc WASMによる、ブラウザ内・完全ローカルの文書→Markdown変換
 - Markdown編集（標準`textarea`によるシンプルなエディタ）
 - Markdownプレビュー（`markdown-it`によるリアルタイム表示、安全側の設定で生HTMLは無効）
+- Marp Coreによるスライドプレビュー（v0.2.0、標準的なMarp Markdownをそのまま表示）
 - Markdownの保存（`.md`ファイルとしてダウンロード）
 - Markdownのコピー（クリップボードへ一括コピー）
+- スライドのHTML出力・印刷（PDF化）・プレゼン表示（v0.2.0）
 - 外部API不要・CDN不要・インターネット接続不要
 - 静的Webサーバ（IIS等）に配置するだけで利用可能
 - Node.js / Python / .NET等のランタイムを利用者端末に要求しない（ビルド時のみNode.jsを使用）
@@ -31,7 +40,8 @@ v0.1.0は、文書変換エンジン [AnyDoc](https://github.com/firecrawl/anydo
 2. ツールバーの「ファイルを開く」から文書を選択する、または編集領域へファイルをドラッグ&ドロップする
 3. 対応文書であれば自動的にMarkdownへ変換される（`.md` / `.markdown` / `.txt` はそのまま読み込まれる）
 4. 左側のMarkdown編集領域で内容を必要に応じて編集する
-5. 右側のプレビューで表示結果を確認する
+5. 右側のプレビューで表示結果を確認する。「文書」ではmarkdown-itによる通常のプレビュー、
+   「スライド」ではMarp Coreによるスライドプレビューを表示する
 6. 「Markdownをコピー」でクリップボードへコピー、または「Markdownを保存」で`.md`ファイルとして保存する
 
 画面上部のステータス表示に、変換完了・読み込み完了・変換中・エラー等の状態が随時表示されます。
@@ -39,15 +49,21 @@ v0.1.0は、文書変換エンジン [AnyDoc](https://github.com/firecrawl/anydo
 ## 画面構成
 
 ```text
-┌─────────────────────────────────────────────┐
-│ MarkdownUtil                                 │
-│ [ファイルを開く][Markdownを保存][コピー][クリア] │
-│ sample.docx → Markdown変換完了                │
-├────────────────────┬──────────────────────────┤
-│ Markdown           │ プレビュー                │
-│ (textarea編集領域)  │ (markdown-itによる表示)   │
-└────────────────────┴──────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│ MarkdownUtil                                                   │
+│ [ファイルを開く][Markdownを保存][コピー][クリア]                │
+│ sample.docx → Markdown変換完了                                  │
+├────────────────────┬────────────────────────────────────────────┤
+│ Markdown           │ プレビュー [文書][スライド]  (スライド専用操作) │
+│                    │                                            │
+│ (textarea編集領域)  │ 文書モード: markdown-itによる表示            │
+│                    │ スライドモード: Marp Coreによるスライド表示   │
+└────────────────────┴────────────────────────────────────────────┘
 ```
+
+「文書」「スライド」の切替は右ペイン上部で行います。テーマ・HTML出力・印刷・プレゼン表示は
+スライドモードの時だけ表示され、通常のMarkdown編集・プレビュー中はツールバーがごちゃつかない
+ようにしています。
 
 画面幅が狭い場合（目安860px以下）は、左右2ペインが上下に切り替わります。
 
@@ -90,6 +106,100 @@ AnyDocの仕様上は以下も変換対象ですが、v0.1.0のテストでは�
 （`js/converter.js` 参照）。ファイル選択ダイアログの絞り込み表示のみ、UI上のヒントとして
 別途一覧を持っています。
 
+## スライドプレビュー（Marp、v0.2.0）
+
+右ペインの「スライド」タブでは、エディタと同じMarkdownを [Marp Core](https://github.com/marp-team/marp-core)
+でレンダリングし、スライドとして表示します。**Markdownが唯一のデータ**であり、スライド専用の
+別ファイル形式は持ちません。モードを切り替えるだけではMarkdown本文を書き換えません。
+
+### 通常プレビューとの違い
+
+| | 文書モード | スライドモード |
+| --- | --- | --- |
+| 使用ライブラリ | markdown-it | Marp Core |
+| 表示内容 | 見出し・段落等を上から下へ通常のドキュメントとして表示 | `---`で区切られたスライドを1枚ずつ表示 |
+| Markdownへの影響 | なし | なし（テーマをドロップダウンで変更した場合のみfront matterへ反映） |
+| 専用操作 | なし | テーマ・HTML出力・印刷・プレゼン表示 |
+
+AnyDocが生成したMarkdownや`.md`/`.txt`をそのまま読み込んだ場合など、Marp向けのfront matter
+（`marp: true`等）が無いMarkdownでも、可能な範囲でスライドとして表示します（`---`が無ければ
+1枚のスライドとして表示されます）。スライド表示するだけでfront matterが自動的に挿入される
+ことはありません。
+
+### Marp Markdownの例
+
+```markdown
+---
+marp: true
+theme: default
+paginate: true
+---
+
+# タイトル
+
+説明
+
+---
+
+## 2枚目
+
+- 項目1
+- 項目2
+```
+
+先頭のYAML front matterで設定を行い、`---`の行でスライドを区切ります。表・箇条書き・
+コードブロック・リンク・画像など、通常のMarkdown記法もそのまま利用できます。詳しい記法は
+[Marpの公式ドキュメント](https://marpit.marp.app/)を参照してください。
+
+### テーマ
+
+`default` / `gaia` / `uncover` の3つの標準テーマに対応しています。ツールバーのテーマ選択を
+変更すると、その値がfront matterの`theme:`へ書き込まれます（front matterが無い場合は
+`marp: true`とともに新設します）。そのため、テーマを切り替えてもMarkdownはMarp互換のまま
+保たれ、他のMarp対応ツールで開いても同じテーマで表示されます。Markdown中に未知のテーマ名が
+書かれている場合、それを消したり上書きしたりすることはありません（テーマ選択欄の表示だけ
+`default`にフォールバックします）。独自テーマの登録機能はv0.2.0では用意していません。
+
+### HTML出力
+
+「HTML出力」で、現在のスライドを1つのHTMLファイルとしてダウンロードできます。スライドの
+HTMLとCSSを内包しているため、そのファイル単体をブラウザで開くだけで閲覧できます（外部通信は
+発生しません）。
+
+### 印刷 / PDF化
+
+「印刷」を押すと、印刷用に整形したスライドが新しいタブで開き、ブラウザの印刷ダイアログが
+表示されます。送信先に「PDFに保存」を選ぶとPDFとして保存できます。独自のPDF生成エンジンは
+持たず、ブラウザの印刷機能を利用します。用紙サイズはスライドサイズ（既定1280×720px）に
+合わせて指定済みです。印刷設定では余白「なし」・背景のグラフィック「オン」を確認してください。
+
+### プレゼン表示
+
+「プレゼン表示」で編集画面を隠し、スライドを画面いっぱいに1枚ずつ表示します。
+
+| 操作 | キー |
+| --- | --- |
+| 次のスライド | `→` `↓` `Space` `PageDown` / クリック |
+| 前のスライド | `←` `↑` `Shift+Space` `PageUp` |
+| 最初 / 最後 | `Home` / `End` |
+| 編集画面へ戻る | `Esc` |
+
+### 外部通信について（外部URL画像の注意）
+
+MarkdownUtil自身がスライド表示のために外部のAPI・CDN・Webフォントへ通信することはありません。
+これを保つため、Marp Coreの既定動作のうち次の2点だけ設定を変えています。
+
+- 絵文字：既定では画像（twemoji CDN）へ置き換えますが、これを無効にしフォントの絵文字で表示します。
+- テーマのWebフォント：`gaia`テーマ等が`@import`で読み込む外部Webフォントを取り除き、
+  テーマのフォールバックフォントで表示します（見た目のフォントのみ変わり、記法には影響しません）。
+
+数式は外部リソースを必要としないMathJaxで描画します。
+
+ただし、これはあくまで「MarkdownUtil自身が外部へアクセスしないこと」の保証です。編集中の
+Markdownに`![](https://example.com/photo.jpg)`のような外部URLの画像やリンクを記述した場合、
+その取得は通常のWebページと同様にブラウザが行うため、外部通信が発生します。閉域環境で確認する
+場合は、画像をdata URIで埋め込むか、ローカル/相対パスの画像を使ってください。
+
 ## ディレクトリ構成
 
 ```text
@@ -98,12 +208,14 @@ markdownutil/
 ├─ css/
 │  └─ app.css           自作: スタイル
 ├─ js/
-│  ├─ app.js             自作: UI全体（ファイル選択・D&D・保存・コピー・クリア・ステータス表示）
+│  ├─ app.js             自作: UI全体（ファイル選択・D&D・保存・コピー・クリア・モード切替・ステータス表示）
 │  ├─ converter.js       自作: AnyDoc WASMの初期化・呼び出し・エラー正規化
-│  └─ preview.js          自作: markdown-itによるプレビュー描画
+│  ├─ preview.js          自作: markdown-itによる通常プレビュー描画
+│  └─ slide-preview.js    自作: Marp Coreの初期化・レンダリング・iframe描画・テーマ・HTML出力・印刷・プレゼン表示
 ├─ vendor/
 │  ├─ anydoc/            外部: AnyDoc WASM本体（@firecrawl/anydoc-wasm, MIT）
-│  └─ markdown-it/       外部: markdown-it本体（MIT）
+│  ├─ markdown-it/       外部: markdown-it本体（MIT）
+│  └─ marp/              外部: Marp Core本体（@marp-team/marp-core, MIT）
 ├─ docs/
 │  └─ TESTING.md         実施したテストの記録
 ├─ LICENSES/             サードパーティライセンス文書
@@ -120,18 +232,19 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
 
 ### `.wasm` と `.mjs` の配信について
 
-本ツールは`.wasm`（AnyDoc本体）に加えて、`.mjs`（markdown-itのビルド済みESモジュール:
-`vendor/markdown-it/markdown-it.esm.min.mjs`）も静的ファイルとして配信します。どちらも
-IIS側で拡張子が未登録だと問題になるため、実機配置時は両方を確認してください。
+本ツールは`.wasm`（AnyDoc本体）に加えて、`.mjs`（markdown-itとMarp Coreのビルド済みESモジュール:
+`vendor/markdown-it/markdown-it.esm.min.mjs`、`vendor/marp/marp-core.bundle.mjs`）も静的
+ファイルとして配信します。いずれもIIS側で拡張子が未登録だと問題になるため、実機配置時は
+すべて確認してください。
 
-- `vendor/anydoc/anydoc_wasm_bg.wasm` および `vendor/markdown-it/markdown-it.esm.min.mjs` は
-  いずれも静的ファイルとしてそのまま配信できます。
+- `vendor/anydoc/anydoc_wasm_bg.wasm`、`vendor/markdown-it/markdown-it.esm.min.mjs`、
+  `vendor/marp/marp-core.bundle.mjs` はいずれも静的ファイルとしてそのまま配信できます。
 - `js/app.js` はESモジュール（`<script type="module">`）としてブラウザから直接読み込まれ、
-  `js/converter.js`・`js/preview.js`もESモジュールのimportで読み込まれます。AnyDocの初期化
-  コード（`vendor/anydoc/anydoc_wasm.js`）は自分自身のファイルパスを基準に
-  `anydoc_wasm_bg.wasm` を相対パスで取得します。そのため `markdownutil/` フォルダごと配置
-  場所（サブフォルダ・仮想ディレクトリ）を変更しても、内部の相対配置さえ崩さなければ
-  正常に動作します。
+  `js/converter.js`・`js/preview.js`・`js/slide-preview.js`もESモジュールのimportで
+  読み込まれます。AnyDocの初期化コード（`vendor/anydoc/anydoc_wasm.js`）は自分自身の
+  ファイルパスを基準に`anydoc_wasm_bg.wasm`を相対パスで取得します。そのため
+  `markdownutil/` フォルダごと配置場所（サブフォルダ・仮想ディレクトリ）を変更しても、
+  内部の相対配置さえ崩さなければ正常に動作します。
 - `.wasm`の望ましいMIME typeは `application/wasm`、`.mjs`は`text/javascript`です。
   IISのバージョンやサーバ設定によっては、これらの拡張子がMIMEマップに未登録の場合があります。
   - `.wasm`が`application/octet-stream`等の誤ったMIME typeで配信された場合、AnyDoc側に
@@ -177,7 +290,7 @@ IIS側で拡張子が未登録だと問題になるため、実機配置時は�
 上記は開発者ツールのNetworkタブで外部ホストへの通信が発生しないことを確認済みです
 （`docs/TESTING.md` 参照）。
 
-## 既知の制限（v0.1.0）
+## 既知の制限
 
 - 元文書のレイアウトを完全に再現するものではありません。MarkdownはあくまでMarkdownとして
   表現可能な範囲に変換されます。
@@ -198,7 +311,17 @@ IIS側で拡張子が未登録だと問題になるため、実機配置時は�
   変換品質はまだ確認できていません。IIS実機配置後、庁内の実文書を用いた検証を別途行う
   予定です。
 - 複数ファイルの一括変換、OCR、AIによる補正、Markdown構文補完、WYSIWYG編集、複数文書の
-  タブ管理、自動保存、履歴管理、クラウド保存などはv0.1.0の対象外です。
+  タブ管理、自動保存、履歴管理、クラウド保存などは対象外です。
+- スライドプレビューは、AnyDocが生成した通常のMarkdownを「自動でスライドへ整形する」もの
+  ではありません（見出しごとに`---`を自動挿入する、AIが要約する等の処理は行いません）。
+  現在のMarkdownをそのままMarp記法として表示するだけなので、意図した枚数・区切りで
+  スライド化するには、front matterや`---`区切りをMarkdown側に書く必要があります。
+- 元のMarkdown中に水平線として`---`単体の行が含まれている場合、Marpはそれをスライド区切りと
+  解釈します。これはMarp記法の仕様であり、MarkdownUtil側で特別に補正はしていません。
+- スライド機能はPPTX出力、独自スライドエンジン、独自テーマエディタ、WYSIWYGスライド編集、
+  複数資料管理を持ちません。
+- スライドの一時編集内容をlocalStorage等へ自動保存する機能はありません（v0.1.0からの方針を
+  継続しています）。
 
 ## サードパーティライブラリとライセンス
 
@@ -208,6 +331,8 @@ IIS側で拡張子が未登録だと問題になるため、実機配置時は�
 
 - AnyDoc WASM（`@firecrawl/anydoc-wasm`）: MIT License
 - markdown-it: MIT License
+- Marp Core（`@marp-team/marp-core`）: MIT License（内部で利用するhighlight.js等の
+  ライセンスも`LICENSES/marp-core-dependencies/`にまとめています）
 
 ## テストについて
 
@@ -217,8 +342,15 @@ IIS側で拡張子が未登録だと問題になるため、実機配置時は�
 ## 開発メモ（ビルドについて）
 
 配布物自体は静的ファイルのみで、利用時にNode.js等は不要です。ただし本リポジトリの
-`vendor/`配下は、npmで公開されている`@firecrawl/anydoc-wasm`と`markdown-it`のビルド済み
-成果物をそのまま取り込んだものです。更新する場合は、それぞれのnpmパッケージを取得し、
-ブラウザ向けビルド成果物（AnyDocは`anydoc_wasm.js` / `anydoc_wasm_bg.wasm` /
-`anydoc_wasm.d.ts`、markdown-itは`dist/browser/markdown-it.esm.min.mjs`）を
+`vendor/`配下は、npmで公開されている`@firecrawl/anydoc-wasm`・`markdown-it`のビルド済み
+成果物をそのまま取り込んだもの、および`@marp-team/marp-core`をMarkdownUtil向けに
+ビルドし直したものです。更新する場合は、それぞれのnpmパッケージを取得し、以下を
 `vendor/`配下へ差し替えてください。
+
+- AnyDoc: `anydoc_wasm.js` / `anydoc_wasm_bg.wasm` / `anydoc_wasm.d.ts`（npm配布物そのまま）
+- markdown-it: `dist/browser/markdown-it.esm.min.mjs`（npm配布物そのまま）
+- Marp Core: `@marp-team/marp-core`をエントリポイントとして`esbuild`で
+  `format: 'esm', bundle: true, minify: true, platform: 'browser'`でビルドし直した
+  `marp-core.bundle.mjs`（npm配布物をそのまま使うのではなく、ブラウザ向けESMとして
+  再ビルドしている点がAnyDoc・markdown-itと異なります。[`slide`リポジトリ](https://github.com/YanTKYS/slide)の
+  `build/build.mjs`と同様の方法です）

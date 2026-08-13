@@ -1,10 +1,12 @@
 // app.js
 // UI全体の面倒を見る: ファイル選択、ドラッグ&ドロップ、エディタ更新、ボタン操作、
-// 保存、コピー、クリア、ステータス表示。文書変換の詳細はconverter.js、
-// プレビュー描画の詳細はpreview.jsに委ね、ここでは呼び出しと画面更新のみ行う。
+// 保存、コピー、クリア、ステータス表示、文書/スライドのプレビュー切替。
+// 文書変換の詳細はconverter.js、通常プレビューの詳細はpreview.js、
+// スライドプレビューの詳細はslide-preview.jsに委ね、ここでは呼び出しと画面更新のみ行う。
 
 import { convertToMarkdown, isTextFile, getExtension, ConversionError, preload, PICKER_EXTENSIONS_HINT } from './converter.js';
 import { updatePreview } from './preview.js';
+import * as slidePreview from './slide-preview.js';
 
 const openBtn = document.getElementById('open-btn');
 const fileInput = document.getElementById('file-input');
@@ -16,11 +18,23 @@ const editor = document.getElementById('editor');
 const previewEl = document.getElementById('preview');
 const dropZone = document.getElementById('editor-drop-zone');
 
+const modeDocBtn = document.getElementById('mode-doc-btn');
+const modeSlideBtn = document.getElementById('mode-slide-btn');
+const slideToolbar = document.getElementById('slide-toolbar');
+const slideStatus = document.getElementById('slide-status');
+const slideThemeSelect = document.getElementById('slide-theme-select');
+const slideExportBtn = document.getElementById('slide-export-html-btn');
+const slidePrintBtn = document.getElementById('slide-print-btn');
+const slidePresentBtn = document.getElementById('slide-present-btn');
+const slideFrame = document.getElementById('slide-frame');
+const presenterHint = document.getElementById('presenter-hint');
+
 const INITIAL_STATUS = 'ファイルを開くか、Markdownをドラッグ&ドロップしてください。';
 
 const state = {
   isConverting: false,
   saveFilename: 'document.md',
+  mode: 'doc', // 'doc' | 'slide'
 };
 
 function setStatus(message, tone = 'info') {
@@ -57,11 +71,73 @@ function deriveSaveFilename(sourceFilename) {
   return `${base}.md`;
 }
 
-function refreshPreview() {
+function titleFromSaveFilename() {
+  return (state.saveFilename || 'document.md').replace(/\.(md|markdown)$/i, '');
+}
+
+function downloadTextFile(filename, text, mimeType) {
+  const blob = new Blob([text], { type: `${mimeType};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ---------- プレビュー（文書 / スライド） ---------- */
+
+function refreshDocPreview() {
   updatePreview(previewEl, editor.value);
 }
 
-const debouncedRefreshPreview = debounce(refreshPreview, 150);
+function syncThemeSelect() {
+  const theme = slidePreview.readTheme(editor.value);
+  slideThemeSelect.value = slidePreview.THEMES.includes(theme) ? theme : 'default';
+}
+
+function refreshSlidePreview() {
+  const { slideCount, error } = slidePreview.render(editor.value);
+  if (error) {
+    setStatus(`スライドMarkdownを解析できませんでした: ${error}`, 'error');
+  }
+  slideStatus.textContent = slideCount > 0 ? `${slideCount}枚` : '';
+  syncThemeSelect();
+}
+
+function refreshActivePreview() {
+  if (state.mode === 'slide') {
+    refreshSlidePreview();
+  } else {
+    refreshDocPreview();
+  }
+}
+
+const debouncedRefreshActive = debounce(refreshActivePreview, 150);
+
+function applyModeUI(mode) {
+  state.mode = mode;
+  const isSlide = mode === 'slide';
+
+  modeDocBtn.classList.toggle('is-active', !isSlide);
+  modeDocBtn.setAttribute('aria-selected', String(!isSlide));
+  modeSlideBtn.classList.toggle('is-active', isSlide);
+  modeSlideBtn.setAttribute('aria-selected', String(isSlide));
+
+  previewEl.hidden = isSlide;
+  slideFrame.hidden = !isSlide;
+  slideToolbar.hidden = !isSlide;
+}
+
+function switchMode(mode) {
+  if (state.mode === mode) return;
+  applyModeUI(mode);
+  refreshActivePreview();
+}
+
+/* ---------- ファイル読み込み ---------- */
 
 async function handleFile(file) {
   if (state.isConverting) return;
@@ -73,14 +149,14 @@ async function handleFile(file) {
       const text = await file.text();
       editor.value = text;
       state.saveFilename = deriveSaveFilename(file.name);
-      refreshPreview();
+      refreshActivePreview();
       setStatus(`${file.name} を読み込みました`, 'success');
     } else {
       setStatus('変換中...', 'busy');
       const markdown = await convertToMarkdown(file);
       editor.value = markdown;
       state.saveFilename = deriveSaveFilename(file.name);
-      refreshPreview();
+      refreshActivePreview();
       setStatus(`${file.name} → Markdown変換完了`, 'success');
     }
   } catch (error) {
@@ -92,6 +168,8 @@ async function handleFile(file) {
     setConverting(false);
   }
 }
+
+/* ---------- コピー / 保存 / クリア ---------- */
 
 function legacyCopy(text) {
   const ta = document.createElement('textarea');
@@ -125,17 +203,8 @@ async function copyMarkdown() {
 }
 
 function saveMarkdown() {
-  const text = editor.value;
   const filename = state.saveFilename || 'document.md';
-  const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadTextFile(filename, editor.value, 'text/markdown');
   setStatus(`${filename} を保存しました`, 'success');
 }
 
@@ -145,9 +214,12 @@ function clearAll() {
   }
   editor.value = '';
   state.saveFilename = 'document.md';
-  refreshPreview();
+  applyModeUI('doc');
+  refreshActivePreview();
   setStatus(INITIAL_STATUS);
 }
+
+/* ---------- ドラッグ&ドロップ ---------- */
 
 function setupDragAndDrop() {
   const activate = (event) => {
@@ -179,6 +251,47 @@ function setupDragAndDrop() {
   window.addEventListener('drop', (event) => event.preventDefault());
 }
 
+/* ---------- スライド専用操作 ---------- */
+
+function setupSlideControls() {
+  slidePreview.init(slideFrame, presenterHint);
+
+  modeDocBtn.addEventListener('click', () => switchMode('doc'));
+  modeSlideBtn.addEventListener('click', () => switchMode('slide'));
+
+  slideThemeSelect.addEventListener('change', () => {
+    const updated = slidePreview.writeTheme(editor.value, slideThemeSelect.value);
+    if (updated !== editor.value) {
+      editor.value = updated;
+    }
+    refreshSlidePreview();
+  });
+
+  slideExportBtn.addEventListener('click', () => {
+    const title = titleFromSaveFilename();
+    const html = slidePreview.buildStandaloneHtml(title, false);
+    if (!html) {
+      setStatus('出力できるスライドがありません。', 'error');
+      return;
+    }
+    downloadTextFile(`${title}.html`, html, 'text/html');
+    setStatus(`${title}.html を保存しました`, 'success');
+  });
+
+  slidePrintBtn.addEventListener('click', () => {
+    const result = slidePreview.openPrintWindow(titleFromSaveFilename());
+    if (!result.opened) {
+      setStatus('印刷用ウィンドウを開けませんでした。ポップアップの許可を確認してください。', 'error');
+    }
+  });
+
+  slidePresentBtn.addEventListener('click', () => {
+    slidePreview.enterPresentation();
+  });
+}
+
+/* ---------- 起動 ---------- */
+
 function init() {
   fileInput.accept = PICKER_EXTENSIONS_HINT.map((ext) => `.${ext}`).join(',');
 
@@ -197,10 +310,11 @@ function init() {
   copyBtn.addEventListener('click', copyMarkdown);
   clearBtn.addEventListener('click', clearAll);
 
-  editor.addEventListener('input', debouncedRefreshPreview);
+  editor.addEventListener('input', debouncedRefreshActive);
 
   setupDragAndDrop();
-  refreshPreview();
+  setupSlideControls();
+  refreshActivePreview();
 
   // 初回変換を速くするため、バックグラウンドでWASM初期化を始めておく。
   preload();
