@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarkdownUtil</title>
+<meta name="description" content="文書をブラウザ内でMarkdownへ変換し、編集・プレビュー・保存できる閉域環境向けツール">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+  <header class="toolbar">
+    <div class="toolbar-row">
+      <h1 class="app-title">MarkdownUtil</h1>
+      <div class="toolbar-actions">
+        <button id="open-btn" type="button">ファイルを開く</button>
+        <input id="file-input" type="file" hidden>
+        <button id="save-btn" type="button">Markdownを保存</button>
+        <button id="copy-btn" type="button">Markdownをコピー</button>
+        <button id="clear-btn" type="button">クリア</button>
+      </div>
+    </div>
+    <p class="status-bar" id="status-bar" role="status" aria-live="polite">ファイルを開くか、Markdownをドラッグ&amp;ドロップしてください。</p>
+  </header>
+
+  <main class="panes">
+    <section class="pane pane-editor" aria-label="Markdown編集領域">
+      <div class="pane-header">
+        <label for="editor" class="pane-label">Markdown</label>
+      </div>
+      <div class="editor-wrap" id="editor-drop-zone">
+        <textarea
+          id="editor"
+          class="editor"
+          spellcheck="false"
+          autocapitalize="off"
+          autocorrect="off"
+          placeholder="ここにMarkdownを直接入力するか、上部の「ファイルを開く」またはドラッグ&amp;ドロップで文書を読み込んでください。"
+        ></textarea>
+        <div class="drop-overlay" id="drop-overlay" aria-hidden="true">
+          <span>ドロップして読み込み</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane pane-preview" aria-label="プレビュー領域">
+      <div class="pane-header">
+        <span class="pane-label" id="preview-label">プレビュー</span>
+      </div>
+      <div class="preview" id="preview" role="region" aria-labelledby="preview-label"></div>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
