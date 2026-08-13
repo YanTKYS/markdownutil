@@ -70,7 +70,12 @@ function setStatus(message, tone = 'info') {
 
 function setConverting(value) {
   state.isConverting = value;
+  // 変換完了時にeditor.valueを置き換えるため、処理中の編集を許すと職員が入力した
+  // 内容が予告なく失われる。Markdown自体を変更できる操作だけを一時的に止める。
   openBtn.disabled = value;
+  editor.disabled = value;
+  clearBtn.disabled = value;
+  slideThemeSelect.disabled = value;
 }
 
 function debounce(fn, waitMs) {
