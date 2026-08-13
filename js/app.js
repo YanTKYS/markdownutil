@@ -264,11 +264,21 @@ function setupDragAndDrop() {
 
 /* ---------- スライド専用操作 ---------- */
 
-/** スライドが未描画のうちは、出力・印刷・プレゼン表示を実行しない。 */
+/**
+ * 出力・印刷・プレゼン表示の前提を満たしているか確認する。
+ * 解析エラー中（画面には直前の内容が残っているだけ）は、今のMarkdownと異なる内容を
+ * 出力してしまうため許可しない。
+ */
 function hasSlides() {
-  if (slidePreview.getSlideCount() > 0) return true;
-  setStatus('表示できるスライドがありません。Markdownを入力してください。', 'error');
-  return false;
+  if (!slidePreview.isRenderValid()) {
+    setStatus('Markdownにエラーがあるため実行できません。スライドの表示内容を確認してください。', 'error');
+    return false;
+  }
+  if (slidePreview.getSlideCount() === 0) {
+    setStatus('表示できるスライドがありません。Markdownを入力してください。', 'error');
+    return false;
+  }
+  return true;
 }
 
 function setupSlideControls() {

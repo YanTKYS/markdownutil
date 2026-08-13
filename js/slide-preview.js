@@ -143,6 +143,10 @@ let lastRendered = null; // { html, css }
 let slideCount = 0;
 let slideIndex = 0;
 let presenting = false;
+// 直前に表示しているスライドが、現在のMarkdownを正しくレンダリングした結果かどうか。
+// 解析に失敗した場合は直前のプレビューを画面には残すが、それは「今の内容」ではないため、
+// HTML出力・印刷・プレゼン表示はrenderValidがtrueのときだけ許可する。
+let renderValid = false;
 
 // Marp Coreのバンドルは約3.8MBあり、起動時に読み込むと遅い端末では
 // 数秒間ボタンが反応しなくなる。文書プレビューだけを使う場合には不要なので、
@@ -282,6 +286,7 @@ export async function render(markdown) {
   try {
     marp = await loadMarp();
   } catch {
+    renderValid = false;
     return { slideCount: 0, error: 'スライド表示機能を読み込めませんでした。ページを再読み込みしてください。' };
   }
 
@@ -289,13 +294,16 @@ export async function render(markdown) {
   try {
     rendered = marp.render(markdown || '');
   } catch {
-    // front matterのYAMLが壊れている場合など。直前のプレビューはそのまま残す。
+    // front matterのYAMLが壊れている場合など。直前のプレビューは画面にそのまま残すが、
+    // 今のMarkdownを反映したものではないため、出力系操作は許可しない。
+    renderValid = false;
     return { slideCount, error: 'Markdownを解析できませんでした。front matterの書式を確認してください。' };
   }
 
   lastRendered = { html: rendered.html, css: removeRemoteImports(rendered.css) };
   slideCount = countSlides(rendered.html);
   slideIndex = Math.min(slideIndex, Math.max(slideCount - 1, 0));
+  renderValid = true;
 
   postToFrame({ type: 'render', ...lastRendered });
   return { slideCount, error: null };
@@ -304,6 +312,15 @@ export async function render(markdown) {
 /** 現在レンダリングされているスライドの枚数。 */
 export function getSlideCount() {
   return slideCount;
+}
+
+/**
+ * 画面に表示中の内容が、現在のMarkdownを正しくレンダリングした結果かどうか。
+ * 解析エラー中はfalseになる（直前の正常なプレビューが画面には残るが、出力操作は
+ * 「今の内容」ではないものを書き出してしまうため、これで判定する）。
+ */
+export function isRenderValid() {
+  return renderValid;
 }
 
 /** front matterに書かれた現在のテーマ名を読み取る（未指定ならば空文字）。 */
