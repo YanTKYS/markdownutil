@@ -8,6 +8,7 @@ import { convertToMarkdown, isTextFile, getExtension, ConversionError, preload, 
 import { updatePreview } from './preview.js';
 import * as slidePreview from './slide-preview.js';
 import * as presenter from './presenter.js';
+import * as help from './help.js';
 
 const openBtn = document.getElementById('open-btn');
 const fileInput = document.getElementById('file-input');
@@ -36,6 +37,15 @@ const presenterPosition = document.getElementById('presenter-position');
 const presenterPrevBtn = document.getElementById('presenter-prev-btn');
 const presenterNextBtn = document.getElementById('presenter-next-btn');
 const presenterEndBtn = document.getElementById('presenter-end-btn');
+
+const helpBtn = document.getElementById('help-btn');
+const helpOverlay = document.getElementById('help-overlay');
+const helpDialog = document.getElementById('help-dialog');
+const helpCloseBtn = document.getElementById('help-close-btn');
+const helpTabMarkdownBtn = document.getElementById('help-tab-markdown');
+const helpTabMarpBtn = document.getElementById('help-tab-marp');
+const helpMarkdownPanel = document.getElementById('help-panel-markdown');
+const helpMarpPanel = document.getElementById('help-panel-marp');
 
 const INITIAL_STATUS = 'ファイルを開くか、Markdownをドラッグ&ドロップしてください。';
 
@@ -358,6 +368,17 @@ function init() {
 
   setupDragAndDrop();
   setupSlideControls();
+  help.init({
+    openBtn: helpBtn,
+    overlay: helpOverlay,
+    dialog: helpDialog,
+    closeBtn: helpCloseBtn,
+    tabMarkdownBtn: helpTabMarkdownBtn,
+    tabMarpBtn: helpTabMarpBtn,
+    markdownPanel: helpMarkdownPanel,
+    marpPanel: helpMarpPanel,
+    onStatus: setStatus,
+  });
   refreshActivePreview();
 
   // 初回変換を速くするため、バックグラウンドでWASM初期化を始めておく。

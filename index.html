@@ -18,6 +18,7 @@
         <button id="save-btn" type="button">Markdownを保存</button>
         <button id="copy-btn" type="button">Markdownをコピー</button>
         <button id="clear-btn" type="button">クリア</button>
+        <button id="help-btn" type="button" class="help-btn">? ヘルプ</button>
       </div>
     </div>
     <p class="status-bar" id="status-bar" role="status" aria-live="polite">ファイルを開くか、Markdownをドラッグ&amp;ドロップしてください。</p>
@@ -95,6 +96,23 @@
       <button type="button" id="presenter-next-btn">次へ →</button>
     </div>
   </section>
+</div>
+
+<div class="help-overlay" id="help-overlay" hidden>
+  <div class="help-dialog" id="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="help-header">
+      <h2 class="help-title" id="help-title">Markdown / Marp 早見表</h2>
+      <button type="button" id="help-close-btn" class="help-close-btn" aria-label="ヘルプを閉じる">×</button>
+    </div>
+    <div class="help-tabs" role="tablist" aria-label="早見表の切替">
+      <button type="button" id="help-tab-markdown" class="help-tab is-active" role="tab" aria-selected="true">Markdown</button>
+      <button type="button" id="help-tab-marp" class="help-tab" role="tab" aria-selected="false">Marp</button>
+    </div>
+    <div class="help-body">
+      <div class="help-panel-markdown" id="help-panel-markdown"></div>
+      <div class="help-panel-marp" id="help-panel-marp" hidden></div>
+    </div>
+  </div>
 </div>
 
 <script type="module" src="js/app.js"></script>
