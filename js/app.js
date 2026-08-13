@@ -265,6 +265,13 @@ function clearAll() {
 // プレビュー・isRenderCurrent()による整合性はすべてrefreshActivePreview()側で
 // 一括して面倒を見るため、ここで個別に描画処理を呼び直すことはしない。
 function insertSample(sample, mode, filename, confirmLabel, successMessage) {
+  // 変換完了時にeditor.valueを置き換えるため（setConverting()参照）、変換中に
+  // サンプルを挿入すると変換結果で上書きされて消えてしまう。ヘルプ自体は開いたまま
+  // 読めてよいので、挿入操作だけをここで止める。
+  if (state.isConverting) {
+    setStatus('変換中はサンプルを開けません。変換完了後にもう一度お試しください。', 'error');
+    return;
+  }
   if (editor.value.trim() && !window.confirm(`現在のMarkdownを${confirmLabel}に置き換えます。\nよろしいですか？`)) {
     return;
   }
