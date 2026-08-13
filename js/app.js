@@ -9,6 +9,7 @@ import { updatePreview } from './preview.js';
 import * as slidePreview from './slide-preview.js';
 import * as presenter from './presenter.js';
 import * as help from './help.js';
+import { DOCUMENT_SAMPLE, SLIDE_SAMPLE } from './samples.js';
 
 const openBtn = document.getElementById('open-btn');
 const fileInput = document.getElementById('file-input');
@@ -257,6 +258,33 @@ function clearAll() {
   setStatus(INITIAL_STATUS);
 }
 
+/* ---------- ヘルプのサンプル挿入 ---------- */
+
+// エディタへ直接値を書き込む点はhandleFile()と同じ経路（editor.value代入 →
+// applyModeUI/refreshActivePreview）を通す。debounce・文書プレビュー・スライド
+// プレビュー・isRenderCurrent()による整合性はすべてrefreshActivePreview()側で
+// 一括して面倒を見るため、ここで個別に描画処理を呼び直すことはしない。
+function insertSample(sample, mode, filename, confirmLabel, successMessage) {
+  if (editor.value.trim() && !window.confirm(`現在のMarkdownを${confirmLabel}に置き換えます。\nよろしいですか？`)) {
+    return;
+  }
+  editor.value = sample;
+  state.saveFilename = filename;
+  applyModeUI(mode);
+  refreshActivePreview();
+  help.close();
+  setStatus(successMessage, 'success');
+  editor.focus();
+}
+
+function insertDocumentSample() {
+  insertSample(DOCUMENT_SAMPLE, 'doc', 'document.md', '文書サンプル', '文書サンプルを挿入しました');
+}
+
+function insertSlideSample() {
+  insertSample(SLIDE_SAMPLE, 'slide', 'slide.md', 'スライドサンプル', 'スライドサンプルを挿入しました');
+}
+
 /* ---------- ドラッグ&ドロップ ---------- */
 
 function setupDragAndDrop() {
@@ -391,6 +419,8 @@ function init() {
     marpPanel: helpMarpPanel,
     presentationPanel: helpPresentationPanel,
     onStatus: setStatus,
+    onInsertDocumentSample: insertDocumentSample,
+    onInsertSlideSample: insertSlideSample,
   });
   refreshActivePreview();
 

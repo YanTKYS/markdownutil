@@ -3,7 +3,10 @@
 // 4タブで構成され、コンテンツの保持、タブ切替、開閉、記法例のクリップボードコピーを
 // ここへ集約する。app.jsには要素の受け渡しとボタンの配線程度しか持ち込まない。
 // あくまで「その場で読める使い方・早見表」であり、README相当の詳細解説や
-// チュートリアル、編集内容への自動挿入やWYSIWYG化は行わない。
+// WYSIWYG化は行わない。
+// 「使い方」タブの「サンプルで試す」も、利用者がどちらを選んだかを
+// onInsertDocumentSample / onInsertSlideSample で通知するだけで、サンプル本文の
+// 保持やエディタ・Marpへの反映はapp.js（とsamples.js）の責務とする。
 
 const MARKDOWN_ITEMS = [
   {
@@ -135,6 +138,8 @@ const GUIDE_DOC_VS_SLIDE = [
   { term: '「スライド」タブ', desc: '同じMarkdownを「---」で区切り、1枚ずつのスライドとして表示する。Marp独自の記法（テーマ・背景・スピーカーノート等）は「Marp」タブを参照。' },
 ];
 
+const SAMPLE_INTRO = 'MarkdownUtilの使い方を、実際のMarkdownを編集しながら試せます。';
+
 // 「プレゼン」タブに載せる内容。
 const PRESENTATION_STEPS = [
   '「スライド」タブに切り替え、内容を確認する',
@@ -246,6 +251,31 @@ function buildGuidePanel() {
     defs.appendChild(el('dd', null, entry.desc));
   });
   wrap.appendChild(defs);
+
+  wrap.appendChild(el('h3', 'help-section__title', 'サンプルで試す'));
+  wrap.appendChild(el('p', 'help-guide__text', SAMPLE_INTRO));
+  const sampleActions = document.createElement('div');
+  sampleActions.className = 'help-guide__sample-actions';
+
+  const docSampleBtn = document.createElement('button');
+  docSampleBtn.type = 'button';
+  docSampleBtn.className = 'help-guide__sample-btn';
+  docSampleBtn.textContent = '文書サンプルを開く';
+  docSampleBtn.addEventListener('click', () => {
+    if (typeof els.onInsertDocumentSample === 'function') els.onInsertDocumentSample();
+  });
+  sampleActions.appendChild(docSampleBtn);
+
+  const slideSampleBtn = document.createElement('button');
+  slideSampleBtn.type = 'button';
+  slideSampleBtn.className = 'help-guide__sample-btn';
+  slideSampleBtn.textContent = 'スライドサンプルを開く';
+  slideSampleBtn.addEventListener('click', () => {
+    if (typeof els.onInsertSlideSample === 'function') els.onInsertSlideSample();
+  });
+  sampleActions.appendChild(slideSampleBtn);
+
+  wrap.appendChild(sampleActions);
 
   return wrap;
 }
@@ -418,6 +448,7 @@ export function close() {
  *   tabPresentationBtn: HTMLButtonElement,
  *   guidePanel: HTMLElement, markdownPanel: HTMLElement, marpPanel: HTMLElement, presentationPanel: HTMLElement,
  *   onStatus?: (message: string, tone: string) => void,
+ *   onInsertDocumentSample?: () => void, onInsertSlideSample?: () => void,
  * }} elements
  */
 export function init(elements) {
@@ -439,6 +470,8 @@ export function init(elements) {
       presentation: elements.presentationPanel,
     },
     onStatus: elements.onStatus,
+    onInsertDocumentSample: elements.onInsertDocumentSample,
+    onInsertSlideSample: elements.onInsertSlideSample,
   };
 
   els.openBtn.addEventListener('click', open);
