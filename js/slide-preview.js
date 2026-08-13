@@ -143,10 +143,12 @@ let lastRendered = null; // { html, css }
 let slideCount = 0;
 let slideIndex = 0;
 let presenting = false;
-// 直前に表示しているスライドが、現在のMarkdownを正しくレンダリングした結果かどうか。
-// 解析に失敗した場合は直前のプレビューを画面には残すが、それは「今の内容」ではないため、
-// HTML出力・印刷・プレゼン表示はrenderValidがtrueのときだけ許可する。
-let renderValid = false;
+// 最後に正しくレンダリングできたMarkdownそのもの（renderValidの代わりに、これと
+// 「今のエディタの内容」を比較する）。解析失敗時、および入力のdebounce待ちや
+// モード切替直後のように「再描画がまだ終わっていない」間は、画面には直前の内容が
+// 残ったままになる。「render()が最後に成功したか」だけでは、その成功結果が
+// 現在の入力内容と同じかまでは分からないため、入力そのものを記録して照合する。
+let renderedSource = null;
 
 // Marp Coreのバンドルは約3.8MBあり、起動時に読み込むと遅い端末では
 // 数秒間ボタンが反応しなくなる。文書プレビューだけを使う場合には不要なので、
@@ -286,7 +288,7 @@ export async function render(markdown) {
   try {
     marp = await loadMarp();
   } catch {
-    renderValid = false;
+    renderedSource = null;
     return { slideCount: 0, error: 'スライド表示機能を読み込めませんでした。ページを再読み込みしてください。' };
   }
 
@@ -296,14 +298,14 @@ export async function render(markdown) {
   } catch {
     // front matterのYAMLが壊れている場合など。直前のプレビューは画面にそのまま残すが、
     // 今のMarkdownを反映したものではないため、出力系操作は許可しない。
-    renderValid = false;
+    renderedSource = null;
     return { slideCount, error: 'Markdownを解析できませんでした。front matterの書式を確認してください。' };
   }
 
   lastRendered = { html: rendered.html, css: removeRemoteImports(rendered.css) };
   slideCount = countSlides(rendered.html);
   slideIndex = Math.min(slideIndex, Math.max(slideCount - 1, 0));
-  renderValid = true;
+  renderedSource = markdown;
 
   postToFrame({ type: 'render', ...lastRendered });
   return { slideCount, error: null };
@@ -315,12 +317,14 @@ export function getSlideCount() {
 }
 
 /**
- * 画面に表示中の内容が、現在のMarkdownを正しくレンダリングした結果かどうか。
- * 解析エラー中はfalseになる（直前の正常なプレビューが画面には残るが、出力操作は
- * 「今の内容」ではないものを書き出してしまうため、これで判定する）。
+ * 画面に表示中のスライドが、渡されたMarkdownをレンダリングした結果と一致するかどうか。
+ * 解析エラー中はもちろん、入力のdebounce待ちや再描画中のように「まだ反映されていない」
+ * 間も一致しない。「直前のrender()が成功したか」ではなく「その結果が今の入力と同じか」を
+ * 見ることで、編集直後にHTML出力・印刷・プレゼン表示を実行した場合に古い内容が
+ * 出力されてしまうことを防ぐ。
  */
-export function isRenderValid() {
-  return renderValid;
+export function isRenderCurrent(markdown) {
+  return renderedSource !== null && renderedSource === markdown;
 }
 
 /** front matterに書かれた現在のテーマ名を読み取る（未指定ならば空文字）。 */
