@@ -266,12 +266,12 @@ function setupDragAndDrop() {
 
 /**
  * 出力・印刷・プレゼン表示の前提を満たしているか確認する。
- * 解析エラー中（画面には直前の内容が残っているだけ）は、今のMarkdownと異なる内容を
- * 出力してしまうため許可しない。
+ * 解析エラー中、および入力のdebounce待ちや再描画中のように「画面のスライドがまだ今の
+ * Markdownを反映していない」間は、古い内容を出力してしまうため許可しない。
  */
 function hasSlides() {
-  if (!slidePreview.isRenderValid()) {
-    setStatus('Markdownにエラーがあるため実行できません。スライドの表示内容を確認してください。', 'error');
+  if (!slidePreview.isRenderCurrent(editor.value)) {
+    setStatus('現在のMarkdownがまだスライドへ反映されていません。少し待ってから再度お試しください。', 'error');
     return false;
   }
   if (slidePreview.getSlideCount() === 0) {
