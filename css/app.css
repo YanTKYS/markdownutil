@@ -245,11 +245,18 @@ a:focus-visible,
 }
 
 .slide-toolbar {
-  display: flex;
   align-items: center;
   gap: 6px;
   margin-left: auto;
   flex-wrap: wrap;
+}
+
+/* [hidden]は`display:none`を意味するUA既定スタイルだが、`.slide-toolbar`に`display:flex`を
+   無条件で指定すると（詳細度に関わらず作者スタイルがUAスタイルより優先されるため）hidden属性が
+   上書きされ、文書モードでもスライド専用ツールバーが表示されてしまう。:not([hidden])に限定して
+   flexを適用することで、hidden属性による非表示を確実に効かせる。 */
+.slide-toolbar:not([hidden]) {
+  display: flex;
 }
 
 .slide-toolbar-label {
