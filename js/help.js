@@ -111,8 +111,8 @@ const MARP_ITEMS = [
 const GUIDE_FEATURES = [
   'Office文書（Word/Excel/PowerPoint）やPDFをMarkdownへ変換する',
   '変換したMarkdown、または直接書いたMarkdownをその場で編集する',
-  '編集結果を文書として整形表示する（文書表示）',
-  '編集結果をスライドとして表示する（スライド表示、Marp記法対応）',
+  '編集結果を「文書」タブで整形表示する',
+  '編集結果を「スライド」タブで表示する（Marp記法対応）',
   'Markdownをテキストファイルとして保存する',
   '編集内容をクリップボードへコピーする',
   'スライドをHTMLファイルとして書き出す（発表用スライドショーとして単体で開ける）',
@@ -120,25 +120,25 @@ const GUIDE_FEATURES = [
 ];
 
 const GUIDE_STEPS = [
-  'ファイルをドラッグ＆ドロップするか「ファイルを選択」で読み込む（Office文書・PDFはMarkdownへ自動変換される。すでにMarkdownがあれば直接貼り付けてもよい）',
-  '中央のエディタでMarkdownを確認・編集する',
-  '「文書表示」「スライド表示」を切り替えて、仕上がりを確認する',
+  'ファイルをドラッグ＆ドロップするか「ファイルを開く」で読み込む（Office文書・PDFはMarkdownへ自動変換される。すでにMarkdownがあれば直接貼り付けてもよい）',
+  '左側のMarkdownエディタで内容を確認・編集する',
+  '右側の「文書」「スライド」タブを切り替えて、仕上がりを確認する',
   '必要に応じて保存・コピー・HTML出力・印刷を行う',
   'スライドを人前で見せたい場合は「プレゼン」タブを参照する',
 ];
 
-const GUIDE_FILE_TYPES = 'Word（.docx）／Excel（.xlsx）／PowerPoint（.pptx）／PDF／Markdown（.md, .txt）に対応する。';
+const GUIDE_FILE_TYPES = 'Word／Excel／PowerPoint／PDF／CSV／RTF／OpenDocument（.odt/.ods/.odp）／EPUB／Markdown（.md, .txt）など、代表的な形式に対応する（実際に変換できるかどうかは読み込み時にAnyDocが判定する）。';
 const GUIDE_FILE_NOTE = '画像だけをスキャンしたPDF（文字情報を持たないPDF）は、文字として読み取れないためMarkdownへ変換できない場合がある。その場合は元文書やOCR済みのファイルを利用する。';
 
 const GUIDE_DOC_VS_SLIDE = [
-  { term: '文書表示', desc: '同じMarkdownを、見出し・箇条書き・表などを整形した「読み物」として表示する。' },
-  { term: 'スライド表示', desc: '同じMarkdownを「---」で区切り、1枚ずつのスライドとして表示する。Marp独自の記法（テーマ・背景・スピーカーノート等）は「Marp」タブを参照。' },
+  { term: '「文書」タブ', desc: '同じMarkdownを、見出し・箇条書き・表などを整形した「読み物」として表示する。' },
+  { term: '「スライド」タブ', desc: '同じMarkdownを「---」で区切り、1枚ずつのスライドとして表示する。Marp独自の記法（テーマ・背景・スピーカーノート等）は「Marp」タブを参照。' },
 ];
 
 // 「プレゼン」タブに載せる内容。
 const PRESENTATION_STEPS = [
-  'スライド表示に切り替え、内容を確認する',
-  'スライドツールバーの「プレゼン開始」を押す（別ウィンドウが開く）',
+  '「スライド」タブに切り替え、内容を確認する',
+  'スライドツールバーの「プレゼン表示」を押す（別ウィンドウが開く）',
   '開いた別ウィンドウを、プロジェクターや外部ディスプレイ側へ手動でドラッグして移動する（自動での移動・全画面化は行わない。IIS配置はHTTP想定のため、ブラウザの画面配置API等には依存しない）',
   '必要であれば別ウィンドウ側で全画面表示にする。元のウィンドウには発表者ビュー（現在/次のスライド・スピーカーノート・ページ位置）が表示され、進行操作は元のウィンドウ側から行う',
 ];
@@ -157,7 +157,7 @@ const PRESENTATION_NOTE_EXAMPLE = {
   code: '<!--\nここに発表時のメモを書く。\n発表者ビューに表示される。\n-->',
 };
 
-const HTML_EXPORT_NOTE = 'スライドツールバーの「HTML出力」で、Marpを使わずそのまま開ける単体のHTMLファイルとして書き出せる。キーボード・クリックでのページ送り、全画面表示、印刷に対応する（発表者ビューなしの簡易版）。';
+const HTML_EXPORT_NOTE = 'スライドツールバーの「HTML出力」で、Marp Coreを同梱せず、単体でスライドショーできるHTMLファイルとして保存できる。キーボード・クリックでのページ送り、全画面表示、印刷に対応する（発表者ビューなしの簡易版）。';
 
 let els = null; // { openBtn, overlay, dialog, closeBtn, tabButtons, panels, statusCallback }
 let lastFocused = null;
@@ -209,7 +209,7 @@ function buildGuidePanel() {
   const wrap = document.createElement('div');
   wrap.className = 'help-guide';
 
-  wrap.appendChild(el('p', 'help-guide__intro', 'MarkdownUtilは、Office文書やPDFをMarkdownへ変換し、そのままブラウザ上で編集・文書表示・スライド表示ができるツール。すべてブラウザ内で完結し、外部通信は行わない。'));
+  wrap.appendChild(el('p', 'help-guide__intro', 'MarkdownUtilは、Office文書やPDFをMarkdownへ変換し、そのままブラウザ上で編集・「文書」「スライド」表示ができるツール。文書変換・編集・表示はブラウザ内で処理し、MarkdownUtil自身は外部APIやCDNへ通信しない。'));
 
   wrap.appendChild(el('h3', 'help-section__title', 'できること'));
   const features = el('ul', 'help-guide__list');
@@ -229,8 +229,8 @@ function buildGuidePanel() {
   flow.appendChild(el('div', 'help-flow__arrow', '↓ 表示切替'));
   const branch = document.createElement('div');
   branch.className = 'help-flow__branch';
-  branch.appendChild(el('div', 'help-flow__box', '文書表示'));
-  branch.appendChild(el('div', 'help-flow__box', 'スライド表示'));
+  branch.appendChild(el('div', 'help-flow__box', '文書タブ'));
+  branch.appendChild(el('div', 'help-flow__box', 'スライドタブ'));
   flow.appendChild(branch);
   wrap.appendChild(flow);
 
@@ -238,7 +238,7 @@ function buildGuidePanel() {
   wrap.appendChild(el('p', 'help-guide__text', GUIDE_FILE_TYPES));
   wrap.appendChild(el('p', 'help-guide__note', GUIDE_FILE_NOTE));
 
-  wrap.appendChild(el('h3', 'help-section__title', '文書表示とスライド表示の違い'));
+  wrap.appendChild(el('h3', 'help-section__title', '「文書」タブと「スライド」タブの違い'));
   const defs = document.createElement('dl');
   defs.className = 'help-guide__defs';
   GUIDE_DOC_VS_SLIDE.forEach((entry) => {
