@@ -142,7 +142,7 @@ function buildPanel(items) {
     copyBtn.type = 'button';
     copyBtn.className = 'help-item__copy-btn';
     copyBtn.textContent = 'コピー';
-    copyBtn.addEventListener('click', () => copySnippet(item.code));
+    copyBtn.addEventListener('click', () => copySnippet(item.code, copyBtn));
     codeWrap.appendChild(copyBtn);
 
     article.appendChild(codeWrap);
@@ -169,16 +169,38 @@ function legacyCopy(text) {
   if (!ok) throw new Error('execCommand copy failed');
 }
 
-async function copySnippet(text) {
+// 一時的に「コピー済み」表示へ切り替える（ステータス表示はオーバーレイの背面になり
+// 目に入りにくいため、コピー元のボタン自体でも分かるようにする）。
+function flashCopied(button) {
+  if (button._copyResetTimer) {
+    window.clearTimeout(button._copyResetTimer);
+  } else {
+    button.dataset.originalLabel = button.textContent;
+  }
+  button.textContent = 'コピー済み';
+  button._copyResetTimer = window.setTimeout(() => {
+    button.textContent = button.dataset.originalLabel;
+    button._copyResetTimer = null;
+  }, 1200);
+}
+
+async function copySnippet(text, triggerBtn) {
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text);
     } else {
+      // execCommand('copy')は一時textareaへフォーカスを移すため、下のfinallyで
+      // 呼び出し元の「コピー」ボタンへフォーカスを戻す。
       legacyCopy(text);
     }
     notify('記法例をコピーしました', 'success');
+    if (triggerBtn) flashCopied(triggerBtn);
   } catch (error) {
     notify('コピーに失敗しました。テキストを選択して手動でコピーしてください。', 'error');
+  } finally {
+    if (triggerBtn && document.activeElement !== triggerBtn) {
+      triggerBtn.focus();
+    }
   }
 }
 
@@ -206,10 +228,42 @@ function setTab(name) {
   els.panels.marp.hidden = isMarkdown;
 }
 
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+/** ダイアログ内で、今実際に見えている（隠れたタブパネル内ではない）フォーカス可能要素。 */
+function focusableElements() {
+  return Array.from(els.dialog.querySelectorAll(FOCUSABLE_SELECTOR))
+    .filter((el) => el.offsetParent !== null);
+}
+
+// role="dialog" aria-modal="true"を名乗る以上、Tab/Shift+Tabがダイアログの外
+// （背面の通常画面）へ抜けてしまうと、見た目はモーダルなのにキーボードだけ背面を
+// 操作できてしまう。フォーカス可能要素の先頭・末尾で折り返すことで閉じ込める。
+function trapTab(event) {
+  const focusable = focusableElements();
+  if (focusable.length === 0) return;
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+
+  if (event.shiftKey) {
+    if (active === first || !els.dialog.contains(active)) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (active === last || !els.dialog.contains(active)) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function handleKeydown(event) {
   if (event.key === 'Escape') {
     event.preventDefault();
     close();
+  } else if (event.key === 'Tab') {
+    trapTab(event);
   }
 }
 
