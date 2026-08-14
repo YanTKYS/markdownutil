@@ -11,6 +11,7 @@ import * as presenter from './presenter.js';
 import * as help from './help.js';
 import { DOCUMENT_SAMPLE, SLIDE_SAMPLE } from './samples.js';
 import { buildDocxBlob, WordExportError } from './word-export.js';
+import { copyText } from './clipboard.js';
 
 const openBtn = document.getElementById('open-btn');
 const fileInput = document.getElementById('file-input');
@@ -103,7 +104,11 @@ function deriveSaveFilename(sourceFilename) {
   return `${base}.md`;
 }
 
-function titleFromSaveFilename() {
+/**
+ * 保存用ファイル名から拡張子を取り除いた部分（HTML出力・Word出力のファイル名や
+ * スライドのタイトルの元にする）。
+ */
+function saveFilenameBase() {
   return (state.saveFilename || 'document.md').replace(/\.(md|markdown)$/i, '');
 }
 
@@ -120,10 +125,6 @@ function downloadBlob(filename, blob) {
 
 function downloadTextFile(filename, text, mimeType) {
   downloadBlob(filename, new Blob([text], { type: `${mimeType};charset=utf-8` }));
-}
-
-function docxFilenameFromSaveFilename() {
-  return (state.saveFilename || 'document.md').replace(/\.(md|markdown)$/i, '.docx');
 }
 
 /* ---------- プレビュー（文書 / スライド） ---------- */
@@ -221,33 +222,10 @@ async function handleFile(file) {
 
 /* ---------- コピー / 保存 / クリア ---------- */
 
-function legacyCopy(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  let ok = false;
-  try {
-    ok = document.execCommand('copy');
-  } finally {
-    document.body.removeChild(ta);
-  }
-  if (!ok) throw new Error('execCommand copy failed');
-}
-
 async function copyMarkdown() {
-  const text = editor.value;
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      legacyCopy(text);
-    }
+  if (await copyText(editor.value)) {
     setStatus('Markdownをコピーしました', 'success');
-  } catch (error) {
+  } else {
     setStatus('コピーに失敗しました。テキストを選択して手動でコピーしてください。', 'error');
   }
 }
@@ -269,7 +247,7 @@ async function exportWord() {
   // （長文ほど時間がかかる）なので、await中にeditor.value/state.saveFilenameが
   // 別ファイルの読み込み等で変わっても、押した瞬間の文書がその文書の名前で保存されるようにする。
   const markdown = editor.value;
-  const filename = docxFilenameFromSaveFilename();
+  const filename = `${saveFilenameBase()}.docx`;
 
   state.isExportingWord = true;
   wordExportBtn.disabled = true;
@@ -306,7 +284,15 @@ function clearAll() {
 // applyModeUI/refreshActivePreview）を通す。debounce・文書プレビュー・スライド
 // プレビュー・isRenderCurrent()による整合性はすべてrefreshActivePreview()側で
 // 一括して面倒を見るため、ここで個別に描画処理を呼び直すことはしない。
-function insertSample(sample, mode, filename, confirmLabel, successMessage) {
+// キーはそのまま挿入後の表示モード（'doc' | 'slide'）としても使う。
+const SAMPLES = {
+  doc: { markdown: DOCUMENT_SAMPLE, filename: 'document.md', label: '文書サンプル' },
+  slide: { markdown: SLIDE_SAMPLE, filename: 'slide.md', label: 'スライドサンプル' },
+};
+
+function insertSample(mode) {
+  const sample = SAMPLES[mode];
+
   // 変換完了時にeditor.valueを置き換えるため（setConverting()参照）、変換中に
   // サンプルを挿入すると変換結果で上書きされて消えてしまう。ヘルプ自体は開いたまま
   // 読めてよいので、挿入操作だけをここで止める。
@@ -314,24 +300,18 @@ function insertSample(sample, mode, filename, confirmLabel, successMessage) {
     setStatus('変換中はサンプルを開けません。変換完了後にもう一度お試しください。', 'error');
     return;
   }
-  if (editor.value.trim() && !window.confirm(`現在のMarkdownを${confirmLabel}に置き換えます。\nよろしいですか？`)) {
+  if (editor.value.trim()
+    && !window.confirm(`現在のMarkdownを${sample.label}に置き換えます。\nよろしいですか？`)) {
     return;
   }
-  editor.value = sample;
-  state.saveFilename = filename;
+
+  editor.value = sample.markdown;
+  state.saveFilename = sample.filename;
   applyModeUI(mode);
   refreshActivePreview();
   help.close();
-  setStatus(successMessage, 'success');
+  setStatus(`${sample.label}を挿入しました`, 'success');
   editor.focus();
-}
-
-function insertDocumentSample() {
-  insertSample(DOCUMENT_SAMPLE, 'doc', 'document.md', '文書サンプル', '文書サンプルを挿入しました');
-}
-
-function insertSlideSample() {
-  insertSample(SLIDE_SAMPLE, 'slide', 'slide.md', 'スライドサンプル', 'スライドサンプルを挿入しました');
 }
 
 /* ---------- ドラッグ&ドロップ ---------- */
@@ -410,14 +390,14 @@ function setupSlideControls() {
 
   slideExportBtn.addEventListener('click', () => {
     if (!hasSlides()) return;
-    const title = titleFromSaveFilename();
+    const title = saveFilenameBase();
     downloadTextFile(`${title}.html`, slidePreview.buildStandaloneHtml(title, false), 'text/html');
     setStatus(`${title}.html を保存しました`, 'success');
   });
 
   slidePrintBtn.addEventListener('click', () => {
     if (!hasSlides()) return;
-    if (!slidePreview.openPrintWindow(titleFromSaveFilename())) {
+    if (!slidePreview.openPrintWindow(saveFilenameBase())) {
       setStatus('印刷用ウィンドウを開けませんでした。ポップアップの許可を確認してください。', 'error');
     }
   });
@@ -469,8 +449,8 @@ function init() {
     marpPanel: helpMarpPanel,
     presentationPanel: helpPresentationPanel,
     onStatus: setStatus,
-    onInsertDocumentSample: insertDocumentSample,
-    onInsertSlideSample: insertSlideSample,
+    onInsertDocumentSample: () => insertSample('doc'),
+    onInsertSlideSample: () => insertSample('slide'),
   });
   refreshActivePreview();
 

@@ -8,6 +8,8 @@
 // onInsertDocumentSample / onInsertSlideSample で通知するだけで、サンプル本文の
 // 保持やエディタ・Marpへの反映はapp.js（とsamples.js）の責務とする。
 
+import { copyText } from './clipboard.js';
+
 const MARKDOWN_ITEMS = [
   {
     title: '見出し',
@@ -314,23 +316,6 @@ function buildPresentationPanel() {
   return wrap;
 }
 
-function legacyCopy(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  let ok = false;
-  try {
-    ok = document.execCommand('copy');
-  } finally {
-    document.body.removeChild(ta);
-  }
-  if (!ok) throw new Error('execCommand copy failed');
-}
-
 // 一時的に「コピー済み」表示へ切り替える（ステータス表示はオーバーレイの背面になり
 // 目に入りにくいため、コピー元のボタン自体でも分かるようにする）。
 function flashCopied(button) {
@@ -347,22 +332,16 @@ function flashCopied(button) {
 }
 
 async function copySnippet(text, triggerBtn) {
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      // execCommand('copy')は一時textareaへフォーカスを移すため、下のfinallyで
-      // 呼び出し元の「コピー」ボタンへフォーカスを戻す。
-      legacyCopy(text);
-    }
+  if (await copyText(text)) {
     notify('記法例をコピーしました', 'success');
-    if (triggerBtn) flashCopied(triggerBtn);
-  } catch (error) {
+    flashCopied(triggerBtn);
+  } else {
     notify('コピーに失敗しました。テキストを選択して手動でコピーしてください。', 'error');
-  } finally {
-    if (triggerBtn && document.activeElement !== triggerBtn) {
-      triggerBtn.focus();
-    }
+  }
+  // 代替手段（execCommand）は一時的なtextareaへフォーカスを移すため、
+  // 呼び出し元の「コピー」ボタンへフォーカスを戻す。
+  if (document.activeElement !== triggerBtn) {
+    triggerBtn.focus();
   }
 }
 

@@ -50,6 +50,10 @@ v0.6.1では、Word出力中（生成に時間がかかる長文の場合）に�
 押した時点のMarkdownとファイル名をスナップショットしてから生成するため、生成中に
 別ファイルを開いても、押した瞬間の文書がその文書のファイル名で保存されます。
 
+v0.6.2では、Word出力の表示上の不具合を2件修正しました。表の列幅が本文幅で等分
+されるようになり、1つのリスト項目に補足の段落を続けた場合に、その段落が別の項目
+として出力されないようになりました。
+
 ## 特徴
 
 - AnyDoc WASMによる、ブラウザ内・完全ローカルの文書→Markdown変換
@@ -407,6 +411,7 @@ markdownutil/
 │  ├─ presenter.js        自作: プレゼン専用ウィンドウ・発表者ビュー・ウィンドウ間同期
 │  ├─ help.js             自作: Markdown / Marp 早見表、使い方・プレゼンの解説、サンプル導線
 │  ├─ samples.js          自作: 「使い方」タブから挿入する文書 / スライドサンプルのMarkdown
+│  ├─ clipboard.js        自作: クリップボードへのコピー（Clipboard API + 代替手段）
 │  ├─ markdown-engine.js  自作: markdown-itの初期化オプションをpreview.js/word-export.jsで共有
 │  └─ word-export.js      自作: markdown-itトークン → Word要素（docx）への変換、DOCX Blob生成
 ├─ vendor/
