@@ -41,6 +41,10 @@ v0.5.1では、Office/PDF変換中にサンプルを挿入すると、変換完�
 競合して挿入内容が消えてしまう不具合を修正しました。変換中はサンプル挿入のみを
 案内メッセージ付きで止め、ヘルプ自体は引き続き変換中も開閉できます。
 
+v0.6.0では、上部ツールバーに「Word出力」を追加しました。現在のMarkdownを、
+サーバやMicrosoft Wordを使わずブラウザ内だけでMicrosoft Word形式（`.docx`）へ変換し、
+そのまま保存できます。詳細は「Markdown → Word（DOCX）出力」章を参照してください。
+
 ## 特徴
 
 - AnyDoc WASMによる、ブラウザ内・完全ローカルの文書→Markdown変換
@@ -57,6 +61,8 @@ v0.5.1では、Office/PDF変換中にサンプルを挿入すると、変換完�
 - Markdown / Marpの記法早見表（「? ヘルプ」）。記法例をそのままコピー可能（v0.4.0）
 - ヘルプ内に「使い方」「プレゼン」タブを追加し、アプリ内で利用方法を確認可能（v0.4.2）
 - 「使い方」タブから文書 / スライドのサンプルMarkdownを挿入して、編集しながら試せる（v0.5.0）
+- Markdownを Word ファイル（.docx）へブラウザ内で変換・保存（`docx`ライブラリ使用、
+  Microsoft Word不要）（v0.6.0）
 - 外部API不要・CDN不要・インターネット接続不要
 - 静的Webサーバ（IIS等）に配置するだけで利用可能
 - Node.js / Python / .NET等のランタイムを利用者端末に要求しない（ビルド時のみNode.jsを使用）
@@ -345,6 +351,42 @@ Markdownをエディタへ挿入して、実際に編集しながら試せます
 変わりません。挿入後は該当する表示モード（文書 / スライド）へ自動的に切り替わり、ヘルプは
 閉じます。v0.5.0では文書サンプル・スライドサンプルそれぞれ1種類のみです。
 
+## Markdown → Word（DOCX）出力（v0.6.0）
+
+上部ツールバーの「Word出力」を押すと、現在編集中のMarkdownをMicrosoft Word形式
+（`.docx`）としてブラウザ内で生成し、そのままダウンロードできます。サーバへMarkdown
+本文を送信する処理は行わず、Microsoft Word本体もインストール不要です。生成した
+`.docx`ファイルは、Wordなど対応アプリケーションで通常どおり閲覧・編集できます。
+
+変換は、既存のプレビュー同様 `markdown-it` でMarkdownをトークン化し、HTMLを経由せず
+トークンを直接Word要素（[`docx`](https://docx.js.org)ライブラリ）へ変換する方式です。
+出力ファイル名は、現在の保存用ファイル名（`state.saveFilename`。例: `document.md`）の
+拡張子を`.docx`に置き換えたもの（例: `document.docx`）です。
+
+### 対応しているMarkdown要素
+
+- 見出し（H1〜H6。H1〜H3はWord側の見出しスタイルとして認識される構造で出力）
+- 通常の段落
+- 太字・斜体・インラインコード（同一段落内での混在に対応）
+- 箇条書き・番号付きリスト（最大3階層のネストに対応）
+- 表（ヘッダー行・データ行・罫線。セル内の太字等の書式も維持）
+- コードブロック（複数行を維持した等幅フォント表示。構文ハイライトはなし）
+- 水平線（区切り線として表現）
+- 引用（インデント表現。可能な範囲での対応）
+
+### 対応していない要素・制限
+
+- Markdown画像（`![alt](src)`）の埋め込みは行いません。該当箇所には
+  代替テキストのプレースホルダを出力します。
+- リンク（`[text](url)`）はハイパーリンク化せず、リンク文字列のみをプレーンテキストで
+  出力します。
+- Marp用のfront matter（`marp:` / `theme:` / `paginate:` 等のYAML風ブロック）と、
+  HTMLコメント（Marpのスピーカーノート、通常のMarkdownコメントの両方）はWord本文から
+  除外します。スライド区切りの`---`は、Word側では水平線として表現します（Marpの
+  スライド構成をそのまま再現するものではなく、あくまでMarkdown文書としての出力です）。
+- フォント選択・見出し番号・ヘッダー/フッター・ページ番号・余白・用紙サイズ・縦横切替・
+  脚注・目次自動生成などの詳細設定画面はありません。既定のスタイルで出力します。
+
 ## ディレクトリ構成
 
 ```text
@@ -359,11 +401,14 @@ markdownutil/
 │  ├─ slide-preview.js    自作: Marp Coreの初期化・レンダリング・編集時プレビュー・テーマ・HTML出力・印刷
 │  ├─ presenter.js        自作: プレゼン専用ウィンドウ・発表者ビュー・ウィンドウ間同期
 │  ├─ help.js             自作: Markdown / Marp 早見表、使い方・プレゼンの解説、サンプル導線
-│  └─ samples.js          自作: 「使い方」タブから挿入する文書 / スライドサンプルのMarkdown
+│  ├─ samples.js          自作: 「使い方」タブから挿入する文書 / スライドサンプルのMarkdown
+│  ├─ markdown-engine.js  自作: markdown-itの初期化オプションをpreview.js/word-export.jsで共有
+│  └─ word-export.js      自作: markdown-itトークン → Word要素（docx）への変換、DOCX Blob生成
 ├─ vendor/
 │  ├─ anydoc/            外部: AnyDoc WASM本体（@firecrawl/anydoc-wasm, MIT）
 │  ├─ markdown-it/       外部: markdown-it本体（MIT）
-│  └─ marp/              外部: Marp Core本体（@marp-team/marp-core, MIT）
+│  ├─ marp/              外部: Marp Core本体（@marp-team/marp-core, MIT）
+│  └─ docx/              外部: docx本体（MIT、v0.6.0で追加。ブラウザ向けESM単一ファイルへ再バンドル）
 ├─ docs/
 │  └─ TESTING.md         実施したテストの記録
 ├─ LICENSES/             サードパーティライセンス文書
@@ -491,6 +536,11 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
   解説ではなく、コピーした記法をカーソル位置へ自動挿入する機能もありません（貼り付けは
   手動で行ってください）。掲載内容はMarkdownUtil側に固定されており、利用者によるカスタマイズ
   や追加項目の登録機能はありません。
+- Word出力（v0.6.0）は、Markdown画像の埋め込み、リンクのハイパーリンク化、テンプレート/
+  `.dotx`選択、フォント・見出し番号・ヘッダー/フッター・ページ番号・余白・用紙サイズ・
+  縦横切替の設定画面、脚注、目次自動生成には対応していません。Marp用のMarkdownを出力しても
+  スライド構成をWordへ完全再現するものではなく、あくまでMarkdown文書としての出力です。
+  生成したファイルの再取り込み（Word → Markdown変換）や、Word文書自体の編集機能もありません。
 
 ## サードパーティライブラリとライセンス
 
@@ -502,6 +552,8 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
 - markdown-it: MIT License
 - Marp Core（`@marp-team/marp-core`）: MIT License（内部で利用するhighlight.js等の
   ライセンスも`LICENSES/marp-core-dependencies/`にまとめています）
+- docx: MIT License（内部で利用するjszip等のライセンスも
+  `LICENSES/docx-dependencies/`にまとめています。v0.6.0で追加）
 
 ## テストについて
 

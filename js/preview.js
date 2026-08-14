@@ -2,16 +2,11 @@
 // Markdown -> HTML のプレビュー描画のみを担当する。
 // (ライブラリ名との混同を避けるため、自作ファイル名は markdown.js ではなく preview.js とする)
 
-import MarkdownIt from '../vendor/markdown-it/markdown-it.esm.min.mjs';
+import { createMarkdownIt } from './markdown-engine.js';
 
-// html: false により、Markdown内に書かれた生HTML（<script>等）はそのままテキストとして
-// エスケープ表示され、実行されない。安全側の既定設定をそのまま利用し、独自のサニタイズ処理は
-// 追加しない。markdown-itの既定のリンク検証（javascript: 等の危険なスキームを拒否）もそのまま使う。
-const md = new MarkdownIt({
-  html: false,
-  linkify: true,
-  breaks: false,
-});
+// パーサーの初期化はmarkdown-engine.jsに集約し、Word出力（word-export.js）と
+// 同じ設定（html/linkify/breaks）を共有する。ここでのオプション値自体は変更していない。
+const md = createMarkdownIt();
 
 export function renderMarkdown(source) {
   if (!source || !source.trim()) {

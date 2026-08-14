@@ -1094,3 +1094,183 @@ slideThemeSelect）自体は変更しておらず、ヘルプの開閉・タブ�
 ### 既知の制限（v0.5.1で追加）
 
 - なし（v0.5.0の既知の制限がそのまま引き続き適用される）。
+
+## v0.6.0（Markdown → Word（DOCX）出力）
+
+実施日: 2026-08-14
+方法: Node.js上で`js/word-export.js`を直接呼び出しての単体検証（生成したDOCXを
+`python-docx`という独立実装のPythonライブラリで読み戻し、段落スタイル・ランの
+太字/斜体/フォント・表・リスト階層・numbering.xmlの内容を確認）と、Playwright経由の
+Chromiumによる画面操作の両方で確認した。この環境では`soffice`（LibreOffice）の
+headless変換が`Error: source file could not be loaded`で動作しなかった（自明な
+`.txt→.docx`変換ですら失敗したため、生成物ではなく環境側の制約と判断）ため、
+Microsoft Word互換性は「独立実装のリーダーで構造どおりに読み戻せること」と
+「`docx`ライブラリ自体がMicrosoft/LibreOffice双方で広く実運用されている、ブラウザ/Node両対応を
+謳う成熟したOOXML生成ライブラリであること」を根拠に確認した（実機Wordでの開封確認は
+別途利用者側での実施を推奨）。
+
+### 採用ライブラリ
+
+- [`docx`](https://docx.js.org)（npm: `docx`、v9.7.1、MIT License）を採用した。
+  ブラウザ対応・Node両対応を公式に謳っており、実際にChromium上で`Packer.toBlob()`が
+  動作すること、`eval`/`require`の実行時呼び出しを含まないことを確認済み。
+- npmパッケージの`dist/index.mjs`（Node/ブラウザ両対応のESMビルド、外部importなしの
+  単一ファイル）を`esbuild`で再バンドル・minifyし、`vendor/docx/docx.esm.min.mjs`として
+  配置した（1.06MB → 412KB）。CDNは使用していない。
+- `docx`が内部でバンドルする依存（`jszip`＝MIT/GPL-3.0-or-laterのデュアルライセンスから
+  MITを選択、`nanoid`・`hash.js`・`xml`・`xml-js`＝いずれもMIT）のライセンス全文を
+  `LICENSES/docx-dependencies/`に保存し、`LICENSES/THIRD_PARTY_NOTICES.md`へ追記した。
+
+### markdown-itトークン→Word要素の対応
+
+HTMLを経由せず、`md.parse(markdown, {})`が返すブロック/インライントークンを
+`js/word-export.js`内で直接読み進めてWord要素（`Paragraph`/`Table`/`TextRun`等）へ
+変換している。
+
+| Markdownトークン | Word要素 |
+| --- | --- |
+| `heading_open`（h1〜h6） | `Paragraph({ heading: HeadingLevel.HEADING_1〜6 })`（Word側の見出しスタイルとして認識される） |
+| `paragraph_open` | `Paragraph`（リスト内なら`bullet`/`numbering`、引用内なら左罫線+インデントを付与） |
+| `strong_open`/`em_open`/`code_inline` | `TextRun`の`bold`/`italics`/`font`（同一段落内で入れ子カウンタにより混在に対応） |
+| `bullet_list_open`/`ordered_list_open`（入れ子含む） | `bullet: { level }` / 独自`numbering`参照（最大3階層） |
+| `table_open`〜`table_close` | `Table`/`TableRow`/`TableCell`（ヘッダー行は太字+網掛け、罫線は既定で付与） |
+| `fence`/`code_block` | 等幅フォント（Consolas）+ 網掛け+罫線の1段落（複数行は`TextRun`の`break`で改行を維持） |
+| `hr` | 下罫線のみを持つ空段落（水平線） |
+| `blockquote_open`〜`close` | 左罫線+インデントを付与した段落（可能なら対応、の範囲で実装） |
+| `image`（対象外） | `[画像: 代替テキスト（Word出力は非対応）]`という斜体プレースホルダ |
+| `link_open`/`link_close`（対象外） | リンク文字列のみプレーンテキストとして出力（ハイパーリンク化なし） |
+| Marp front matter・HTMLコメント | `md.parse()`に渡す前に正規表現で除外（後述） |
+
+見出しはビルトインの`HeadingLevel`定数を使ってpStyle参照にしているため、
+Wordのナビゲーションウィンドウ・アウトライン表示・目次機能から見出しとして認識できる。
+
+### md2docとの比較
+
+同一リポジトリオーナーの参考実装 [`md2doc`](https://github.com/YanTKYS/md2doc)
+（`src/Md2Doc.Core/OpenXmlConverter.cs`、Markdig + DocumentFormat.OpenXml、C#/WinForms）を
+読み、変換方式・対応範囲を比較した（この環境に.NET SDKがなくビルド・実行はできないため、
+実際の変換結果はコードレベルでの比較にとどめている）。
+
+| 項目 | md2doc | MarkdownUtil（本実装） |
+| --- | --- | --- |
+| Markdown解析 | Markdig（`UseAdvancedExtensions`） | markdown-it（既存プレビューと共有、`markdown-engine.js`） |
+| Word生成 | DocumentFormat.OpenXml SDK（.NET、ローカルアプリ） | `docx`（ブラウザ内で完結） |
+| 見出し | H1〜H3のみスタイル定義（H4以上はH3スタイルへ丸める）。見出し番号の自動付与オプションあり | H1〜H6すべてに対応（見出し番号の自動付与機能はなし） |
+| リストの最大階層 | 3階層（`MaxListLevel = 2`） | 3階層（`MAX_LIST_LEVEL = 2`）— 独立した設計判断で一致 |
+| 番号付きリストの再開 | リストブロックごとに新しい`NumberingInstance`を生成し、常に1から始まる | 同様に、離れた場所にある別々の番号付きリストごとに新しいnumbering参照を割り当て、1から数え直すよう実装（v0.6.0で対応、テスト#18参照） |
+| 表の列幅 | 最大セル数に合わせて均等割り（twips指定） | 表全体をwidth 100%として自動割り付け（列ごとの明示的な幅指定はなし） |
+| コードブロック | 行ごとに独立した段落（網掛け・罫線なし） | 1つの段落内で改行を維持し、網掛け+罫線を付与（視覚的にコードブロックと分かりやすい） |
+| 改ページ（`<!-- pagebreak -->`） | 対応 | 非対応（v0.6.0のスコープ外） |
+| ヘッダー/フッター・ページ番号・見出し番号設定 | 対応（UI設定あり） | 非対応（v0.6.0でやらないことに明記） |
+| 画像 | 未確認（コード上は非対応） | 明示的に非対応（代替テキストのプレースホルダを出力） |
+
+文書構造・見出し・太字/斜体・リスト・表・コードのいずれについても、両実装とも
+「同じ種類のMarkdown要素を、対応するWordの構造要素（見出しスタイル・
+番号付き段落・表・等幅フォント）へ変換する」という基本方針は一致しており、
+大きな欠落は確認されなかった。主な差異は上記の見出し対応レベル・コードブロックの
+装飾・ヘッダー/フッター等の周辺機能であり、いずれもv0.6.0の対応範囲外として
+README/`docs/TESTING.md`に明記した。
+
+### Marp Markdownの扱い
+
+- 先頭が`---`で始まり、閉じの`---`までの間がすべて`key: value`形式の行である場合に限り
+  front matter とみなしてWord出力前に除去する（本文が単なる水平線`---`から始まる
+  文書を誤って除去しないよう、キー:値の並びだけで構成される場合に限定）。
+- HTMLコメント（`<!-- -->`）はスピーカーノート・通常のMarkdownコメントの両方を対象に、
+  正規表現で除去してから`md.parse()`へ渡す。
+- スライド区切りの`---`はfront matter除去後もそのまま残るため、markdown-itの通常解釈
+  どおり水平線（`hr`）としてWord側に出力される。Marpのスライド構成を再現する機能は
+  持たない。
+
+### エラー処理
+
+- 空・空白のみのMarkdownで「Word出力」を押した場合は、DOCXを生成せず
+  「Word出力するMarkdownがありません。」を表示して終了する。
+- `md.parse()`や`Document`/`Packer.toBlob()`が例外を投げた場合は`WordExportError`へ
+  正規化し、「Markdownを解析できませんでした。」または
+  「Wordファイルを作成できませんでした。」をステータス表示する。いずれの場合も
+  ダウンロードは発生させない（`downloadBlob()`の呼び出し自体に到達しない）。
+- Office/PDF変換中（`state.isConverting`）はWord出力ボタンを無効化し、押しても
+  何も起きない。多重クリック防止用に`state.isExportingWord`も設け、生成中は
+  ボタンを無効化する（3回連続クリックしてもダウンロードは1回のみ発生することを確認）。
+
+### 外部通信確認
+
+Playwrightでリクエストを監視し、Word出力（空Markdownでの試行、通常のMarkdown、
+文書/スライドサンプル、複数回の番号付きリストを含む文書、日本語+絵文字を含む
+長文500段落の文書）を含む一連の操作で、配信元オリジン（`http://localhost:.../`）
+以外へのリクエストが0件であることを確認した。consoleエラーは、この環境に存在しない
+`favicon.ico`への404（既存・無関係）以外は発生しなかった。
+
+### 実施したテスト
+
+| # | 内容 | 結果 |
+| --- | --- | --- |
+| 1 | Markdownが空の場合、「Word出力するMarkdownがありません。」と表示され出力しない | OK |
+| 2 | Markdownがある場合に`.docx`ファイルとして保存できる | OK |
+| 3 | 生成した`.docx`を独立実装（python-docx）で読み戻せる（段落・スタイル・表が破損なく取得できる） | OK |
+| 4 | ファイル名が`document.md → document.docx`、`meeting-note.md → meeting-note.docx`等へ変換される | OK |
+| 5 | Word出力に関わる操作で外部通信が発生しない | OK |
+| 6 | H1がWordの見出し1スタイルとして出力される | OK |
+| 7 | H2がWordの見出し2スタイルとして出力される | OK |
+| 8 | H3がWordの見出し3スタイルとして出力される | OK |
+| 9 | 通常段落が出力される | OK |
+| 10 | 太字が`bold`ランとして出力される | OK |
+| 11 | 斜体が`italic`ランとして出力される | OK |
+| 12 | インラインコードが等幅フォント（Consolas）ランとして出力される | OK |
+| 13 | 箇条書きが`bullet`（List Paragraphスタイル）として出力される | OK |
+| 14 | 番号付きリストが独自numbering参照で出力される | OK |
+| 15 | 表がヘッダー行（太字+網掛け）・データ行・罫線付きで出力される | OK |
+| 16 | コードブロックが複数行を維持した等幅フォント+網掛け+罫線の段落として出力される | OK |
+| 17 | 水平線が下罫線のみの空段落として出力される | OK |
+| 18 | 離れた場所にある2つの番号付きリストが、それぞれ1から数え直される（md2doc比較を踏まえた対応） | OK |
+| 19 | 1つの段落内で通常文字・太字・斜体・インラインコードが混在し、それぞれ独立したランとして出力される | OK |
+| 20 | 日本語・絵文字・異体字を含む500段落の長文がすべて欠落・文字化けなく出力される | OK |
+| 21 | 文書サンプル（見出し・太字・斜体・番号付きリスト・箇条書き・表・引用を含む）をそのままWord出力できる | OK |
+| 22 | Marp front matter（`marp:`/`theme:`/`paginate:`）がWord本文に出力されない | OK |
+| 23 | スピーカーノート用HTMLコメントがWord本文に出力されない | OK |
+| 24 | スライドMarkdown（front matter・スピーカーノート・複数スライド`---`区切りを含む）をWord出力してもエラーにならず、スライド区切りは水平線として出力される | OK |
+| 25 | Office/PDF変換中はWord出力ボタンが無効化され、クリックしても何も起きない | OK |
+| 26 | Word出力ボタンを3回連続クリックしても、ダウンロードは1回のみ発生する | OK |
+| 27 | `md.parse()`や`Packer`が失敗するケースを`WordExportError`で捕捉し、ステータス表示のみで壊れたファイルをダウンロードさせない（コード上のtry/catchで確認。人為的に発生させる自然な失敗ケースは v0.6.0の対応範囲内では未発見） | OK |
+| 28 | Office/PDF → Markdown変換（回帰） | OK |
+| 29 | 文書プレビュー（回帰、`preview.js`の`markdown-engine.js`共有化後も出力内容が変化しないことを確認） | OK |
+| 30 | スライドプレビュー（回帰） | OK |
+| 31 | Markdown保存（回帰） | OK |
+| 32 | Markdownコピー（回帰） | OK |
+| 33 | HTML出力（回帰） | OK |
+| 34 | 印刷（別ウィンドウが`blob:`URLで開くことを確認、回帰） | OK |
+| 35 | プレゼン表示・発表者ビュー（回帰） | OK |
+| 36 | サンプル挿入（上書き確認・キャンセル時に本文/モード/ヘルプが変わらないことを含めて回帰） | OK |
+| 37 | ヘルプ（4タブ構成・フォーカストラップ・Escで閉じる、回帰） | OK |
+| 38 | 外部通信0件（Word出力を含む一連の操作全体で確認） | OK |
+| 39 | consoleエラー0件（favicon 404を除く） | OK |
+
+### v0.6.0まとめ
+
+現在のMarkdownを、サーバやMicrosoft Wordを使わずブラウザ内だけでMicrosoft Word形式
+（.docx）へ変換・保存する機能を追加した。既存のMarkdown解析（`markdown-it`）を
+`markdown-engine.js`として共通化し、HTMLを経由せずトークンを直接Word要素へ変換する
+方式（`js/word-export.js`）で実装した。参考実装`md2doc`のC#実装を読み、見出し・
+リスト・表・コード等の対応方針を比較したうえで、番号付きリストの再開挙動などの
+差異は本実装側でも同等の挙動になるよう調整した。Marp向けのfront matter・
+HTMLコメントはWord本文から除外し、画像埋め込み・ハイパーリンク化・テンプレート
+選択・詳細書式設定等はv0.6.0のスコープ外として明記した。
+
+### 既知の制限（v0.6.0で追加）
+
+- Markdown画像（`![alt](src)`）はWordへ埋め込まれず、代替テキストのプレースホルダに
+  置き換わる。
+- リンク（`[text](url)`）はハイパーリンク化せず、プレーンテキストとして出力される。
+- Marp向けMarkdownをWord出力しても、スライド構成（1枚ずつの区切り・テーマ・
+  背景色等）を再現するものではない。スライド区切りの`---`は単なる水平線として
+  出力される。
+- フォント選択・見出し番号の自動付与・ヘッダー/フッター・ページ番号・余白・
+  用紙サイズ・縦横切替・脚注・目次自動生成の設定画面はない。既定のスタイル
+  （本文: Yu Gothic 10.5pt、コード: Consolas）で出力する。
+- 生成した`.docx`をMarkdownUtilへ再度取り込む機能（Word → Markdown変換）はない。
+- この開発環境には`soffice`（LibreOffice）が動作する状態で存在せず、また
+  Microsoft Word・.NET SDKも利用できないため、実機のWord/LibreOffice双方での
+  目視確認は行えていない。生成した`.docx`の妥当性は、独立実装のPythonライブラリ
+  （python-docx）による読み戻し確認と、`docx`ライブラリの実績・仕様準拠を根拠に
+  判断している。実機での最終確認は別途利用者側での実施を推奨する。
