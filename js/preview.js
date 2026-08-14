@@ -3,6 +3,7 @@
 // (ライブラリ名との混同を避けるため、自作ファイル名は markdown.js ではなく preview.js とする)
 
 import { createMarkdownIt } from './markdown-engine.js';
+import { createElement } from './dom.js';
 
 // パーサーの初期化はmarkdown-engine.jsに集約し、Word出力（word-export.js）と
 // 同じ設定（html/linkify/breaks）を共有する。ここでのオプション値自体は変更していない。
@@ -21,10 +22,7 @@ export function updatePreview(targetEl, source) {
 
   if (!html) {
     targetEl.textContent = '';
-    const empty = document.createElement('p');
-    empty.className = 'preview-empty';
-    empty.textContent = 'プレビューはここに表示されます。';
-    targetEl.appendChild(empty);
+    targetEl.appendChild(createElement('p', 'preview-empty', 'プレビューはここに表示されます。'));
     return;
   }
 

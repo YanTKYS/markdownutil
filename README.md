@@ -60,6 +60,16 @@ v0.6.3では、エラーの通知と原因の記録を見直しました。失�
 ブラウザの開発者ツール（console）へ`[MarkdownUtil]`接頭辞付きで記録するようにしました。
 記録はブラウザ内だけで、外部への送信は行いません。
 
+v0.6.4は、Devinチームが並行して作成した3件のPull Request（共通処理の整理・
+postMessage/CSPのセキュリティ強化・ユニットテスト基盤）を、v0.6.3の土台へ統合した
+リリースです。新機能の追加は行わず、既存v0.6.xの品質・安全性・保守性・テスト容易性を
+まとめて向上させています。`js/dom.js` / `js/download.js` / `js/inline-html.js`へ
+機能非依存の重複処理を切り出し、iframe/別ウィンドウ間の`postMessage`に送信元window・
+オリジンの検証を追加し、CSP（Content-Security-Policy）を設定しました。あわせて、
+Node.js組み込みのテストランナー（`node --test`、追加の依存パッケージなし）による
+ユニットテストを導入しています。詳細は[`docs/TESTING.md`](docs/TESTING.md)の
+「v0.6.4」を参照してください。
+
 ## 特徴
 
 - AnyDoc WASMによる、ブラウザ内・完全ローカルの文書→Markdown変換
@@ -79,6 +89,10 @@ v0.6.3では、エラーの通知と原因の記録を見直しました。失�
 - Markdownを Word ファイル（.docx）へブラウザ内で変換・保存（`docx`ライブラリ使用、
   Microsoft Word不要）（v0.6.0）
 - 失敗時は利用者へ日本語メッセージ、原因の例外はconsoleへ記録（外部送信なし）（v0.6.3）
+- CSP（Content-Security-Policy）と、スライド/プレゼン表示間の`postMessage`における
+  送信元window・オリジンの検証（v0.6.4）
+- `node --test`（追加の依存パッケージなし）によるユニットテスト基盤。利用者端末に
+  Node.jsは不要（v0.6.4）
 - 外部API不要・CDN不要・インターネット接続不要
 - 静的Webサーバ（IIS等）に配置するだけで利用可能
 - Node.js / Python / .NET等のランタイムを利用者端末に要求しない（ビルド時のみNode.jsを使用）
@@ -421,12 +435,18 @@ markdownutil/
 │  ├─ clipboard.js        自作: クリップボードへのコピー（Clipboard API + 代替手段）
 │  ├─ markdown-engine.js  自作: markdown-itの初期化オプションをpreview.js/word-export.jsで共有
 │  ├─ word-export.js      自作: markdown-itトークン → Word要素（docx）への変換、DOCX Blob生成
-│  └─ errors.js           自作: 捕捉した例外のconsoleへの記録（v0.6.3。外部送信は行わない）
+│  ├─ errors.js           自作: 捕捉した例外のconsoleへの記録（v0.6.3。外部送信は行わない）
+│  ├─ dom.js              自作: 要素生成・タブの選択状態・修飾キー判定といった共通DOM処理（v0.6.4）
+│  ├─ download.js         自作: Blob URL経由のファイル保存・新規ウィンドウ表示（v0.6.4）
+│  └─ inline-html.js      自作: 出力HTML向けのエスケープと、生成する<script>で共通のコード片（v0.6.4）
 ├─ vendor/
 │  ├─ anydoc/            外部: AnyDoc WASM本体（@firecrawl/anydoc-wasm, MIT）
 │  ├─ markdown-it/       外部: markdown-it本体（MIT）
 │  ├─ marp/              外部: Marp Core本体（@marp-team/marp-core, MIT）
 │  └─ docx/              外部: docx本体（MIT、v0.6.0で追加。ブラウザ向けESM単一ファイルへ再バンドル）
+├─ test/                 開発用: js/配下のユニットテスト（node --test、依存パッケージなし。v0.6.4）
+│  └─ helpers/           開発用: DOMの代用・DOCX展開などのテスト補助
+├─ package.json          開発用: node --testを実行するためだけの定義（配布物には不要。v0.6.4）
 ├─ docs/
 │  └─ TESTING.md         実施したテストの記録
 ├─ LICENSES/             サードパーティライセンス文書
@@ -506,6 +526,23 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
 上記は開発者ツールのNetworkタブで外部ホストへの通信が発生しないことを確認済みです
 （`docs/TESTING.md` 参照）。
 
+### CSP（Content-Security-Policy）とpostMessageの制限（v0.6.4）
+
+`index.html`に`Content-Security-Policy`を設定し、同梱ファイル以外の読み込みと外部への
+送信を明示的に禁止しています（`default-src 'self'`を基本に、AnyDoc WASM実行に必要な
+`wasm-unsafe-eval`、スライド表示用ドキュメント・Marpが生成するインライン`<script>`/`<style>`に
+必要な`unsafe-inline`のみ個別に許可）。Markdown内に書いた外部URL画像（`img-src`）は
+従来どおり表示できます（閉域環境での注意点は前述のとおりです）。
+
+あわせて、スライドプレビュー用iframe・プレゼン専用ウィンドウとの`postMessage`によるやり取りは、
+送信元のwindowと送信元オリジンの両方を照合し、一致しないメッセージは受け付けません。
+`window.open()`は他オリジンのページからも参照でき、描画（`render`）メッセージを偽装されると
+MarkdownUtilのオリジンで任意のHTML/スクリプトを実行されるおそれがあるための対策です。
+送信時も、可能な場合は本体自身のオリジンを送信先に指定します（`file://`等でオリジンが
+定まらない場合のみ、従来どおり`'*'`を使います）。1つの送信先へのpostMessageが失敗しても、
+他の送信先（発表者ビューの現在/次スライドや投影用ウィンドウ）への同期は止まりません
+（v0.6.3のエラー処理を維持）。
+
 ## 既知の制限
 
 - 元文書のレイアウトを完全に再現するものではありません。MarkdownはあくまでMarkdownとして
@@ -577,6 +614,24 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
 
 実施した変換・操作・異常系・閉域確認の一覧と結果は
 [`docs/TESTING.md`](docs/TESTING.md) に記載しています。
+
+### ユニットテスト（v0.6.4）
+
+`js/`配下のモジュールに対するユニットテストを`test/`に置いています。Node.js組み込みの
+テストランナー（`node --test`）だけを使い、依存パッケージは追加していません（閉域環境でも
+`npm install`なしに実行できます）。配布物には影響しません。
+
+```bash
+npm test              # ユニットテストの実行（Node.js 20以上）
+npm run test:coverage # カバレッジ付きで実行（Node.js 22以上）
+```
+
+- ブラウザ専用のAPI（DOM・`window.open`・クリップボード）は`test/helpers/fake-dom.js`の
+  最小限の代用で置き換えています。
+- Marp Core・docx・AnyDoc WASMは差し替えずに`vendor/`の本物を読み込みます。DOCXの中身は
+  `test/helpers/docx-zip.js`（`node:zlib`のみ使用）で展開して検証します。
+- `js/app.js`・`js/help.js`は画面全体の組み立て（UI配線）が中心のため、ユニットテストでは
+  なく本章の手動テスト（`docs/TESTING.md`）で確認しています。
 
 ## 開発メモ（ビルドについて）
 

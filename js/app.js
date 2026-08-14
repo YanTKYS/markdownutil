@@ -11,7 +11,9 @@ import * as presenter from './presenter.js';
 import * as help from './help.js';
 import { DOCUMENT_SAMPLE, SLIDE_SAMPLE } from './samples.js';
 import { buildDocxBlob, WordExportError } from './word-export.js';
-import { copyText } from './clipboard.js';
+import { copyText, COPY_FAILED_MESSAGE } from './clipboard.js';
+import { downloadBlob, downloadTextFile } from './download.js';
+import { setTabSelected } from './dom.js';
 import { logError } from './errors.js';
 
 const openBtn = document.getElementById('open-btn');
@@ -113,21 +115,6 @@ function saveFilenameBase() {
   return (state.saveFilename || 'document.md').replace(/\.(md|markdown)$/i, '');
 }
 
-function downloadBlob(filename, blob) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function downloadTextFile(filename, text, mimeType) {
-  downloadBlob(filename, new Blob([text], { type: `${mimeType};charset=utf-8` }));
-}
-
 /* ---------- プレビュー（文書 / スライド） ---------- */
 
 function refreshDocPreview() {
@@ -191,10 +178,8 @@ function applyModeUI(mode) {
   state.mode = mode;
   const isSlide = mode === 'slide';
 
-  modeDocBtn.classList.toggle('is-active', !isSlide);
-  modeDocBtn.setAttribute('aria-selected', String(!isSlide));
-  modeSlideBtn.classList.toggle('is-active', isSlide);
-  modeSlideBtn.setAttribute('aria-selected', String(isSlide));
+  setTabSelected(modeDocBtn, !isSlide);
+  setTabSelected(modeSlideBtn, isSlide);
 
   previewEl.hidden = isSlide;
   slideFrame.hidden = !isSlide;
@@ -248,7 +233,7 @@ async function copyMarkdown() {
   if (await copyText(editor.value)) {
     setStatus('Markdownをコピーしました', 'success');
   } else {
-    setStatus('コピーに失敗しました。テキストを選択して手動でコピーしてください。', 'error');
+    setStatus(COPY_FAILED_MESSAGE, 'error');
   }
 }
 

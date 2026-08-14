@@ -1,0 +1,11 @@
+{
+  "name": "markdownutil",
+  "version": "0.6.4",
+  "private": true,
+  "type": "module",
+  "description": "配布物は静的ファイルのみ。このpackage.jsonはNode組み込みテストランナー（node --test）でjs/配下のユニットテストを実行するためだけに存在する（依存パッケージなし）。",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=vendor/** --test-coverage-exclude=test/** test/*.test.js"
+  }
+}
