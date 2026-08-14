@@ -265,12 +265,17 @@ async function exportWord() {
     return;
   }
 
+  // Word出力を押した時点のMarkdownとファイル名をスナップショットする。生成は非同期
+  // （長文ほど時間がかかる）なので、await中にeditor.value/state.saveFilenameが
+  // 別ファイルの読み込み等で変わっても、押した瞬間の文書がその文書の名前で保存されるようにする。
+  const markdown = editor.value;
+  const filename = docxFilenameFromSaveFilename();
+
   state.isExportingWord = true;
   wordExportBtn.disabled = true;
   setStatus('Wordファイルを作成しています...', 'busy');
   try {
-    const blob = await buildDocxBlob(editor.value);
-    const filename = docxFilenameFromSaveFilename();
+    const blob = await buildDocxBlob(markdown);
     downloadBlob(filename, blob);
     setStatus(`${filename} を保存しました`, 'success');
   } catch (error) {
