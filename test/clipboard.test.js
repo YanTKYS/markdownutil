@@ -72,14 +72,29 @@ test('copyText: execCommandが例外を投げてもfalseを返し、textareaを�
   }
 });
 
-test('copyText: writeTextが拒否された場合はfalseを返す（代替へは切り替えない）', async () => {
+test('copyText: writeTextが拒否された場合はtextareaによる代替を試す', async () => {
   const dom = installFakeDom({
     clipboard: { writeText: async () => { throw new Error('denied'); } },
     execCommand: () => true,
   });
   try {
-    assert.equal(await copyText('拒否'), false);
-    assert.equal(dom.createdElements.length, 0);
+    assert.equal(await copyText('拒否'), true);
+    assert.equal(dom.createdElements.length, 1);
+    assert.equal(dom.createdElements[0].value, '拒否');
+    assert.deepEqual(dom.document.body.children, []);
+  } finally {
+    dom.restore();
+  }
+});
+
+test('copyText: writeTextと代替手段の両方が失敗した場合はfalseを返す', async () => {
+  const dom = installFakeDom({
+    clipboard: { writeText: async () => { throw new Error('denied'); } },
+    execCommand: () => false,
+  });
+  try {
+    assert.equal(await copyText('コピー不可'), false);
+    assert.deepEqual(dom.document.body.children, []);
   } finally {
     dom.restore();
   }

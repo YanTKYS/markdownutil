@@ -68,6 +68,30 @@ test('downloadBlob: aタグ経由でダウンロードし、遅延してBlob URL
   }
 });
 
+test('downloadBlob: clickが失敗してもリンクとBlob URLを片付けて例外を返す', () => {
+  const dom = installFakeDom();
+  const env = withFakeUrlAndWindow();
+  try {
+    const originalCreateElement = dom.document.createElement;
+    dom.document.createElement = (tagName) => {
+      const element = originalCreateElement(tagName);
+      element.click = () => { throw new Error('download blocked'); };
+      return element;
+    };
+
+    assert.throws(
+      () => downloadBlob('document.md', new Blob(['本文'])),
+      /download blocked/,
+    );
+    assert.deepEqual(dom.document.body.children, [], 'リンク要素が残っている');
+    assert.deepEqual(env.revoked, ['blob:markdownutil/test']);
+    assert.deepEqual(env.timeouts, []);
+  } finally {
+    env.restore();
+    dom.restore();
+  }
+});
+
 test('downloadTextFile: 指定したMIMEタイプ+charset=utf-8でBlobを作る', () => {
   const dom = installFakeDom();
   const env = withFakeUrlAndWindow();
