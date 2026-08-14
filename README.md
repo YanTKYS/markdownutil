@@ -54,6 +54,12 @@ v0.6.2では、Word出力の表示上の不具合を2件修正しました。表
 されるようになり、1つのリスト項目に補足の段落を続けた場合に、その段落が別の項目
 として出力されないようになりました。
 
+v0.6.3では、エラーの通知と原因の記録を見直しました。失敗しているのに成功したように
+見える経路（HTMLの組み立てに失敗しても「保存しました」と表示していた等）と、失敗が
+画面に出ないまま止まる経路をふさぎ、利用者へは短い日本語メッセージ、原因となった例外は
+ブラウザの開発者ツール（console）へ`[MarkdownUtil]`接頭辞付きで記録するようにしました。
+記録はブラウザ内だけで、外部への送信は行いません。
+
 ## 特徴
 
 - AnyDoc WASMによる、ブラウザ内・完全ローカルの文書→Markdown変換
@@ -72,6 +78,7 @@ v0.6.2では、Word出力の表示上の不具合を2件修正しました。表
 - 「使い方」タブから文書 / スライドのサンプルMarkdownを挿入して、編集しながら試せる（v0.5.0）
 - Markdownを Word ファイル（.docx）へブラウザ内で変換・保存（`docx`ライブラリ使用、
   Microsoft Word不要）（v0.6.0）
+- 失敗時は利用者へ日本語メッセージ、原因の例外はconsoleへ記録（外部送信なし）（v0.6.3）
 - 外部API不要・CDN不要・インターネット接続不要
 - 静的Webサーバ（IIS等）に配置するだけで利用可能
 - Node.js / Python / .NET等のランタイムを利用者端末に要求しない（ビルド時のみNode.jsを使用）
@@ -413,7 +420,8 @@ markdownutil/
 │  ├─ samples.js          自作: 「使い方」タブから挿入する文書 / スライドサンプルのMarkdown
 │  ├─ clipboard.js        自作: クリップボードへのコピー（Clipboard API + 代替手段）
 │  ├─ markdown-engine.js  自作: markdown-itの初期化オプションをpreview.js/word-export.jsで共有
-│  └─ word-export.js      自作: markdown-itトークン → Word要素（docx）への変換、DOCX Blob生成
+│  ├─ word-export.js      自作: markdown-itトークン → Word要素（docx）への変換、DOCX Blob生成
+│  └─ errors.js           自作: 捕捉した例外のconsoleへの記録（v0.6.3。外部送信は行わない）
 ├─ vendor/
 │  ├─ anydoc/            外部: AnyDoc WASM本体（@firecrawl/anydoc-wasm, MIT）
 │  ├─ markdown-it/       外部: markdown-it本体（MIT）

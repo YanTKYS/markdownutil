@@ -12,6 +12,7 @@ import * as help from './help.js';
 import { DOCUMENT_SAMPLE, SLIDE_SAMPLE } from './samples.js';
 import { buildDocxBlob, WordExportError } from './word-export.js';
 import { copyText } from './clipboard.js';
+import { logError } from './errors.js';
 
 const openBtn = document.getElementById('open-btn');
 const fileInput = document.getElementById('file-input');
@@ -130,7 +131,14 @@ function downloadTextFile(filename, text, mimeType) {
 /* ---------- プレビュー（文書 / スライド） ---------- */
 
 function refreshDocPreview() {
-  updatePreview(previewEl, editor.value);
+  try {
+    updatePreview(previewEl, editor.value);
+  } catch (error) {
+    // プレビューの失敗を黙って見逃すと、編集しても右ペインが古い内容のままになる。
+    // 編集内容は残したまま、反映できていないことを利用者へ伝える。
+    logError('refreshDocPreview: 文書プレビューの描画に失敗', error);
+    setStatus('プレビューを更新できませんでした。表示は直前の内容のままです。', 'error');
+  }
 }
 
 function syncThemeSelect() {
@@ -153,8 +161,19 @@ async function refreshSlidePreview() {
   // Marp Coreの初回読み込み中だけ表示される（読み込み済みなら描画前に上書きされる）。
   setSlideStatus('スライドを準備しています...', false);
 
-  const { slideCount, error } = await slidePreview.render(editor.value);
-  setSlideStatus(error || (slideCount > 0 ? `${slideCount}枚` : ''), Boolean(error));
+  // render()は想定される失敗（Marpの読み込み失敗・解析エラー等）をerrorとして返すが、
+  // それ以外の例外で拒絵された場合に「スライドを準備しています...」のまま残して
+  // 未処理のPromise拒絵として消してしまわないよう、ここでも表示へ反映させる。
+  let result;
+  try {
+    result = await slidePreview.render(editor.value);
+  } catch (error) {
+    logError('refreshSlidePreview: スライドプレビューの描画に失敗', error);
+    setSlideStatus('スライドを表示できませんでした。', true);
+    return;
+  }
+
+  setSlideStatus(result.error || (result.slideCount > 0 ? `${result.slideCount}枚` : ''), Boolean(result.error));
   syncThemeSelect();
 }
 
@@ -211,6 +230,9 @@ async function handleFile(file) {
       setStatus(`${file.name} → Markdown変換完了`, 'success');
     }
   } catch (error) {
+    // ConversionError以外（file.text()の失敗や想定外の例外）は要約メッセージだけを見せるため、
+    // 原因が分かるようコンソールへは常に残す。
+    logError(`handleFile: ${file.name} の読み込み・変換に失敗`, error);
     const message = error instanceof ConversionError
       ? error.message
       : 'ファイルを読み込めませんでした。';
@@ -232,7 +254,15 @@ async function copyMarkdown() {
 
 function saveMarkdown() {
   const filename = state.saveFilename || 'document.md';
-  downloadTextFile(filename, editor.value, 'text/markdown');
+  // 保存に失敗しても例外がボタンのclickハンドラへ抜けるだけだと、画面には何も出ず
+  // 「保存できたのか分からない」状態になる。成功した場合だけ成功を名乗る。
+  try {
+    downloadTextFile(filename, editor.value, 'text/markdown');
+  } catch (error) {
+    logError(`saveMarkdown: ${filename} の保存に失敗`, error);
+    setStatus('ファイルを保存できませんでした。', 'error');
+    return;
+  }
   setStatus(`${filename} を保存しました`, 'success');
 }
 
@@ -257,6 +287,7 @@ async function exportWord() {
     downloadBlob(filename, blob);
     setStatus(`${filename} を保存しました`, 'success');
   } catch (error) {
+    logError(`exportWord: ${filename} の生成・保存に失敗`, error);
     const message = error instanceof WordExportError
       ? error.message
       : 'Wordファイルを作成できませんでした。';
@@ -391,7 +422,22 @@ function setupSlideControls() {
   slideExportBtn.addEventListener('click', () => {
     if (!hasSlides()) return;
     const title = saveFilenameBase();
-    downloadTextFile(`${title}.html`, slidePreview.buildStandaloneHtml(title, false), 'text/html');
+
+    // 組み立てに失敗した場合（null）をそのまま保存すると、中身が"null"とだけ書かれた
+    // HTMLファイルを「保存しました」として渡してしまうため、保存前に確かめる。
+    const html = slidePreview.buildStandaloneHtml(title, false);
+    if (!html) {
+      setStatus('スライドをHTMLとして出力できませんでした。スライドの表示を確認してください。', 'error');
+      return;
+    }
+
+    try {
+      downloadTextFile(`${title}.html`, html, 'text/html');
+    } catch (error) {
+      logError(`slideExport: ${title}.html の保存に失敗`, error);
+      setStatus('HTMLファイルを保存できませんでした。', 'error');
+      return;
+    }
     setStatus(`${title}.html を保存しました`, 'success');
   });
 
@@ -458,4 +504,13 @@ function init() {
   preload();
 }
 
-init();
+// 起動に失敗した場合、例外がコンソールへ出るだけでは、利用者には「ボタンを押しても
+// 何も起きない画面」としてしか見えない。最低限、ステータス行で状態を伝える。
+try {
+  init();
+} catch (error) {
+  logError('init: 起動処理に失敗', error);
+  if (statusBar) {
+    setStatus('画面の初期化に失敗しました。ページを再読み込みしてください。', 'error');
+  }
+}

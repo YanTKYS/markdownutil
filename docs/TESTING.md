@@ -1419,3 +1419,81 @@ Word出力で「表が狭く描画される」「手順書のリストが項目�
   複雑にすることは避けた。
 - v0.6.1までの既知の制限（画像の非埋め込み、リンクの非ハイパーリンク化、
   詳細書式設定画面なし、Word実機での目視確認が未実施 など）はそのまま適用される。
+
+## v0.6.3（エラー処理の堅牢化）
+
+実施日: 2026-08-14
+方法: `python3 -m http.server`でリポジトリ本体を配信（http://127.0.0.1:8801 ）し、
+GUI Chromium上で画面操作して確認した。失敗経路は、リポジトリを`/tmp`へコピーした
+配信物（http://127.0.0.1:8810 ）に対してのみ障害注入を行い、URLの`?fail=<種別>`で
+切り替えた（本体のコードは変更していない）。注入内容は
+`window.open`をnullにする／開いたウィンドウの`document.write`を例外にする／
+`navigator.clipboard.writeText`を拒否し`execCommand`をfalseにする／
+スライド枠への`postMessage`を例外にする／`downloadTextFile()`を例外にする／
+`buildStandaloneHtml()`をnullにする／`slidePreview.render()`を例外にする／
+`markdown-it`の`parse`・`render`を例外にする／`help.init()`を例外にする／
+vendorの`Marp#render`を例外にする、の各1点差し替え。
+AnyDocの変換失敗は、注入ではなく不正なZIP構造の`.docx`（41バイト）を
+本体（8801）で実際に読み込んで再現した。
+外部通信とconsoleは、Playwright（CDP接続）でリクエスト・console・pageerrorを
+記録しながら正常系一式を実行して集計した。
+
+### 実施したテスト
+
+| # | 内容 | 結果 |
+| --- | --- | --- |
+| 1 | `buildStandaloneHtml()`がnullを返すとき、`スライドをHTMLとして出力できませんでした。スライドの表示を確認してください。`をエラー表示し、`保存しました`を出さない | OK |
+| 2 | 同条件でHTMLファイルがダウンロードされない（中身が`null`のファイルが増えない） | OK |
+| 3 | `downloadTextFile()`が例外を投げるとき、Markdown保存は`ファイルを保存できませんでした。`をエラー表示し、`保存しました`を出さない | OK |
+| 4 | 同条件でHTML出力は`HTMLファイルを保存できませんでした。`をエラー表示し、`保存しました`を出さない | OK |
+| 5 | 上記3・4でファイルがダウンロードされず、consoleに`[MarkdownUtil] saveMarkdown: document.md の保存に失敗`・`[MarkdownUtil] slideExport: document.html の保存に失敗`が各1件出る | OK |
+| 6 | `window.open()`がnullのとき、プレゼン表示は`プレゼン用ウィンドウを開けませんでした。ポップアップの許可を確認してください。`を表示し、発表者ビューへ切り替わらない | OK |
+| 7 | 同条件で印刷は`印刷用ウィンドウを開けませんでした。ポップアップの許可を確認してください。`を表示する | OK |
+| 8 | 上記6・7の後もテーマ変更・スライド再描画が動作する（本体が壊れない） | OK |
+| 9 | ポップアップへの`document.write()`が失敗したとき、`プレゼン用ウィンドウを開けませんでした。…`を表示し、consoleに`[MarkdownUtil] start: プレゼン用ウィンドウの初期化に失敗`が出る | OK |
+| 10 | 同条件で空のウィンドウが残らない（操作後もブラウザのページ数が押す前と同じ1件） | OK |
+| 11 | 同条件のまま続けてHTML出力が正常に完了する（`document.html を保存しました`） | OK |
+| 12 | `slidePreview.render()`がrejectしたとき、`スライドを準備しています...`で止まらず`スライドを表示できませんでした。`を表示し、consoleに`[MarkdownUtil] refreshSlidePreview: スライドプレビューの描画に失敗`が出る | OK |
+| 13 | `copyText()`が失敗したとき、画面は従来どおり`コピーに失敗しました。テキストを選択して手動でコピーしてください。`を表示する | OK |
+| 14 | 同条件でconsoleに`[MarkdownUtil] copyText: クリップボードへのコピーに失敗`が原因（Error本体）付きで出る | OK |
+| 15 | 不正な構造の`.docx`を読み込むと`ファイルが破損しているか、読み取れない構造のため変換できませんでした。`を表示し、consoleに`[MarkdownUtil] convertToMarkdown: AnyDocでの変換に失敗`がAnyDocの原因（`Could not find EOCD`）付きで出る | OK |
+| 16 | 同条件でconsoleに`[MarkdownUtil] handleFile: broken.docx の読み込み・変換に失敗 ConversionError`も出る | OK |
+| 17 | Marpの解析が失敗したとき、スライド用ステータスに`Markdownを解析できませんでした。front matterの書式を確認してください。`を表示し、consoleに`[MarkdownUtil] render: MarpでのMarkdown解析に失敗`が出る | OK |
+| 18 | 同条件でHTML出力を押してもファイルは出力されない（スライド0枚のため何も起きない） | OK |
+| 19 | Markdown解析が失敗したとき、Word出力は`Markdownを解析できませんでした。`を表示し、consoleに`[MarkdownUtil] buildDocxBlob: Markdownの解析・Word要素への変換に失敗`と`[MarkdownUtil] exportWord: document.docx の生成・保存に失敗 WordExportError`が出る（`WordExportError`と元の例外の両方がログに残る） | OK |
+| 20 | 文書プレビューの描画が失敗したとき、`プレビューを更新できませんでした。表示は直前の内容のままです。`を表示し、consoleに`[MarkdownUtil] refreshDocPreview: 文書プレビューの描画に失敗`が出る | OK |
+| 21 | `init()`が失敗したとき、`画面の初期化に失敗しました。ページを再読み込みしてください。`を表示し、consoleに`[MarkdownUtil] init: 起動処理に失敗`が出る | OK |
+| 22 | スライド枠への`postMessage`が失敗しても、consoleに`[MarkdownUtil] createMessagePort: スライド描画先へのpostMessageに失敗`が出るだけで、スライド枚数表示（`2枚`）とプレゼン表示（発表者ビューの現在/次スライド描画）は動作する | OK |
+| 23 | 回帰: 文書サンプル挿入→文書プレビュー（見出し・箇条書き・表・引用）が描画される | OK |
+| 24 | 回帰: Word出力で`document.docx`（9,936バイト）が保存される | OK |
+| 25 | 回帰: 出力した`document.docx`を読み込み直すと`document.docx → Markdown変換完了`となり、エディタにMarkdownが入る（AnyDoc変換） | OK |
+| 26 | 回帰: スライドサンプル挿入→スライドタブでスライドが描画され`5枚`と表示される | OK |
+| 27 | 回帰: テーマを`gaia`へ変更するとfront matterが`theme: gaia`になり、表示も切り替わる | OK |
+| 28 | 回帰: HTML出力で`slide.html`（33,356バイト）が保存され、`slide.html を保存しました`と表示される | OK |
+| 29 | 回帰: 印刷で別タブが開き、5ページ分のスライドが印刷プレビューに表示される | OK |
+| 30 | 回帰: プレゼン表示で投影用ウィンドウが開き、本体が発表者ビュー（現在/次/スピーカーノート/`1 / 5`）になる。`次へ →`で`2 / 5`になり、`終了`で通常画面へ戻る | OK |
+| 31 | 回帰: Markdownをコピーで`Markdownをコピーしました`、Markdownを保存で`slide.md`（1,556バイト）が保存される | OK |
+| 32 | 回帰: クリアの確認ダイアログをOKするとエディタが空になり、文書モードと初期メッセージへ戻る | OK |
+| 33 | 正常系一式（サンプル挿入・Word出力・スライド・テーマ・HTML出力・コピー・保存）でconsoleのerror・warning・pageerrorが0件 | OK |
+| 34 | 外部通信0件（記録した18リクエストはすべて配信元`127.0.0.1:8801`とblob URL） | OK |
+
+### v0.6.3まとめ
+
+エラー処理の堅牢化として、「失敗しているのに成功したように見える」経路と
+「失敗すると画面が止まる／後片付けが残る」経路をUI操作で確認した。
+とくに、HTML組み立てに失敗したときに中身が`null`のファイルを
+「保存しました」として渡してしまう問題、`downloadTextFile()`の失敗が
+成功表示になる問題、`document.write()`失敗時に空のポップアップが残る問題は、
+障害注入で再現したうえで修正後の挙動（エラー表示・ファイル未作成・
+ウィンドウ数が増えない）を確認している。
+`logError()`は`[MarkdownUtil]`接頭辞付きでconsoleへ出力するだけで、
+正常系ではerror・warningともに0件、外部通信も0件だった。
+
+### 補足（この記録の範囲）
+
+- 失敗経路は、実際のブラウザ制限（ポップアップブロック設定・クリップボード権限拒否など）
+  ではなく、コピーした配信物への1点差し替えによる再現である。
+- `ConversionError.cause`・`WordExportError.cause`は、原因の例外がconsoleへ
+  出力されていることで確認した（プロパティ値そのものの検査は行っていない）。
+- Marp解析失敗時にHTML出力を押した場合は、スライドが0枚のためボタン側の
+  ガードで何も起きない（エラー文言も出ない）。ファイルが出力されないことは確認済み。

@@ -12,6 +12,7 @@
 // （スピーカーノート等）はWord本文から除外する。
 
 import { createMarkdownIt } from './markdown-engine.js';
+import { logError } from './errors.js';
 import {
   Document,
   Packer,
@@ -57,7 +58,17 @@ const HEADING_LEVELS = {
   6: HeadingLevel.HEADING_6,
 };
 
-export class WordExportError extends Error {}
+/**
+ * Word出力の失敗を表すエラー。messageはそのまま利用者へ表示する前提の日本語とし、
+ * 原因となった例外はcauseへ保持して失わないようにする。
+ */
+export class WordExportError extends Error {
+  constructor(message, { cause } = {}) {
+    super(message);
+    this.name = 'WordExportError';
+    this.cause = cause;
+  }
+}
 
 /** 指定した階層（0始まり）のリストの字下げ幅。 */
 function listIndentLeft(level) {
@@ -380,8 +391,9 @@ export async function buildDocxBlob(markdown) {
     const cleaned = stripFrontMatterAndComments(markdown);
     const tokens = md.parse(cleaned, {});
     ({ children, orderedListCount } = tokensToDocxChildren(tokens));
-  } catch {
-    throw new WordExportError('Markdownを解析できませんでした。');
+  } catch (cause) {
+    logError('buildDocxBlob: Markdownの解析・Word要素への変換に失敗', cause);
+    throw new WordExportError('Markdownを解析できませんでした。', { cause });
   }
 
   if (children.length === 0) {
@@ -412,7 +424,8 @@ export async function buildDocxBlob(markdown) {
 
     const doc = new Document(documentOptions);
     return await Packer.toBlob(doc);
-  } catch {
-    throw new WordExportError('Wordファイルを作成できませんでした。');
+  } catch (cause) {
+    logError('buildDocxBlob: DOCXの生成に失敗', cause);
+    throw new WordExportError('Wordファイルを作成できませんでした。', { cause });
   }
 }

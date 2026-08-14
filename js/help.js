@@ -420,7 +420,9 @@ export function open() {
 }
 
 export function close() {
-  if (els.overlay.hidden) return;
+  // init()前・オーバーレイが既に閉じている場合は何もしない（サンプル挿入の後始末など、
+  // ヘルプを開いていない状態から呼ばれることがある）。
+  if (!els || els.overlay.hidden) return;
   els.overlay.hidden = true;
   document.removeEventListener('keydown', handleKeydown);
   if (lastFocused && typeof lastFocused.focus === 'function') {

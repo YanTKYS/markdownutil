@@ -11,6 +11,8 @@
 // （Marp Coreの初期化オプション、iframe + postMessageによるプレビュー分離、
 // リモートWebフォントの@import除去）を参考にし、MarkdownUtil向けに再構成したもの。
 
+import { logError } from './errors.js';
+
 export const THEMES = ['default', 'gaia', 'uncover'];
 
 const FRONT_MATTER_PATTERN = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(\r?\n|$)/;
@@ -183,10 +185,18 @@ export function createMessagePort(getTargetWindow, handlers = {}) {
 
   function send(message) {
     const win = getTargetWindow();
-    if (ready && win) {
-      win.postMessage(message, '*');
-    } else {
+    if (!ready || !win) {
       pendingQueue.push(message);
+      return;
+    }
+    try {
+      win.postMessage(message, '*');
+    } catch (error) {
+      // 送信先が途中で閉じられた・再読み込みされた場合。1つの送信先へ送れなくなったことで
+      // 他の送信先（発表者ビューの現在・次スライドや投影用ウィンドウ）への同期まで止めないよう、
+      // 例外はここで受け止めて原因をコンソールへ残す。描画・位置指定はいずれも毎回そのときの
+      // 完全な状態を送るため、この1通を捨てても次の送信で追いつく。
+      logError('createMessagePort: スライド描画先へのpostMessageに失敗', error);
     }
   }
 
@@ -293,7 +303,9 @@ export async function render(markdown) {
   let marp;
   try {
     marp = await loadMarp();
-  } catch {
+  } catch (error) {
+    // .mjsがIISのMIME未登録で404になる等。利用者へは要約を返し、原因はコンソールへ残す。
+    logError('render: Marp Coreの読み込みに失敗', error);
     renderedSource = null;
     return { slideCount: 0, error: 'スライド表示機能を読み込めませんでした。ページを再読み込みしてください。' };
   }
@@ -301,7 +313,8 @@ export async function render(markdown) {
   let rendered;
   try {
     rendered = marp.render(markdown || '');
-  } catch {
+  } catch (error) {
+    logError('render: MarpでのMarkdown解析に失敗', error);
     // front matterのYAMLが壊れている場合など。直前のプレビューは画面にそのまま残すが、
     // 今のMarkdownを反映したものではないため、出力系操作は許可しない。
     renderedSource = null;
@@ -575,9 +588,19 @@ export function openPrintWindow(title) {
   const html = buildStandaloneHtml(title, true);
   if (!html) return false;
 
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-  const printWindow = window.open(url, '_blank');
-  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-
-  return Boolean(printWindow);
+  let url = null;
+  try {
+    url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    const printWindow = window.open(url, '_blank');
+    if (!printWindow) {
+      URL.revokeObjectURL(url);
+      return false;
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return true;
+  } catch (error) {
+    if (url) URL.revokeObjectURL(url);
+    logError('openPrintWindow: 印刷用ウィンドウを開けなかった', error);
+    return false;
+  }
 }

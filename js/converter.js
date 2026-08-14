@@ -4,6 +4,7 @@
 // 境界を意識し、外部との入出力は「File/Blobを受け取りMarkdown文字列を返す」形に限定する。
 
 import init, { formatFromPath, toMarkdownBytes } from '../vendor/anydoc/anydoc_wasm.js';
+import { logError } from './errors.js';
 
 // AnyDocを経由せず、そのままエディタへ読み込むテキスト系拡張子。
 export const TEXT_EXTENSIONS = ['md', 'markdown', 'txt'];
@@ -45,9 +46,16 @@ function ensureInit() {
   return initPromise;
 }
 
-/** 起動時にバックグラウンドで初期化を始めておく（失敗はここでは無視し、実変換時に再度扱う）。 */
+/**
+ * 起動時にバックグラウンドで初期化を始めておく。
+ * ここでの失敗は利用者へ通知しない（まだ変換を要求されていない）が、原因を追えるように
+ * コンソールへは残す。初期化はensureInit()側でinitPromiseが破棄されるため、実際に
+ * 変換を実行したときに再試行され、そこで利用者向けのメッセージとして扱われる。
+ */
 export function preload() {
-  ensureInit().catch(() => {});
+  ensureInit().catch((error) => {
+    logError('preload: AnyDoc WASMの事前初期化に失敗（変換実行時に再試行する）', error);
+  });
 }
 
 export function getExtension(filename) {
@@ -105,11 +113,20 @@ export async function convertToMarkdown(file) {
   const bytes = new Uint8Array(buffer);
   // 拡張子からAnyDocの形式を判定する。判定できない場合はundefinedを渡し、
   // AnyDoc自身に内容（バイト列）からの自動判定を委ねる。
-  const format = formatFromPath(file.name) ?? undefined;
+  // 判定自体が例外になった場合も、変換を打ち切るのではなく自動判定へ委ねる
+  // （拡張子が想定外でも中身から変換できる場合があるため）。
+  let format;
+  try {
+    format = formatFromPath(file.name) ?? undefined;
+  } catch (error) {
+    logError('convertToMarkdown: 拡張子からの形式判定に失敗（バイト列からの自動判定へ委ねる）', error);
+    format = undefined;
+  }
 
   try {
     return toMarkdownBytes(bytes, format);
   } catch (error) {
+    logError('convertToMarkdown: AnyDocでの変換に失敗', error);
     throw new ConversionError(messageForError(error), { code: error && error.code, cause: error });
   }
 }
