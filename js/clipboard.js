@@ -1,6 +1,7 @@
 // clipboard.js
 // クリップボードへのコピーだけを担当する。Clipboard APIが使えない環境
-// （HTTP配信の古いブラウザなど）では、一時的なtextareaとexecCommandへ自動的に切り替える。
+// （HTTP配信の古いブラウザなど）、またはAPIが権限設定で拒否された場合は、
+// 一時的なtextareaとexecCommandへ自動的に切り替える。
 // 呼び出し側（app.jsのMarkdownコピー、help.jsの記法例コピー）は成否だけを見ればよいが、
 // 失敗の原因（権限拒否・HTTP配信でClipboard APIが使えない等）はコンソールへ残す。
 
@@ -32,12 +33,20 @@ function copyViaTextarea(text) {
  * @returns {Promise<boolean>} コピーできたか
  */
 export async function copyText(text) {
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
       await navigator.clipboard.writeText(text);
-    } else {
-      copyViaTextarea(text);
+      return true;
+    } catch (error) {
+      // Clipboard APIは存在していても、HTTP配信・権限設定・ブラウザ設定によって
+      // writeText()だけが拒否されることがある。利用者のクリック操作中なら従来方式で
+      // コピーできる可能性があるため、ここで処理を終えず代替手段を試す。
+      logError('copyText: Clipboard APIでのコピーに失敗（代替手段を試行）', error);
     }
+  }
+
+  try {
+    copyViaTextarea(text);
     return true;
   } catch (error) {
     logError('copyText: クリップボードへのコピーに失敗', error);

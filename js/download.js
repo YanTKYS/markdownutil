@@ -20,11 +20,18 @@ const WINDOW_REVOKE_DELAY_MS = 60000;
 export function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  try {
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+  } catch (error) {
+    // click()まで到達できなければブラウザはBlob URLを参照しないため、即座に解放する。
+    URL.revokeObjectURL(url);
+    throw error;
+  } finally {
+    link.remove();
+  }
   window.setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_REVOKE_DELAY_MS);
 }
 
