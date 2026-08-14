@@ -128,11 +128,23 @@ body.is-empty .empty-message { display: flex; }
     if (slide) slide.scrollIntoView({ block: 'center' });
   }
 
+  // 描画指示を受け付ける相手はMarkdownUtil本体（iframeなら親、別ウィンドウならopener）だけ。
+  // このドキュメントのwindowは他オリジンのページからもwindow.open()経由で参照でき、
+  // renderメッセージを偽装されるとMarkdownUtilのオリジンで任意のHTML/スクリプトを
+  // 実行されてしまう（renderは受け取ったHTML内の<script>を意図的に実行する）ため、
+  // 送信元のwindowとオリジンの両方を照合し、一致しないメッセージは捨てる。
+  var host = ${target};
+  // srcdocのiframeやwindow.open()直後の文書はURLが"about:..."のためlocation.originが
+  // "null"になる。ここで必要なのは本体から継承した実際のオリジンなのでself.originを見る。
+  // file://で開いた場合は"null"となり、postMessageの宛先には指定できない。
+  var hostOrigin = self.origin && self.origin !== 'null' ? self.origin : '*';
+
   function post(message) {
-    ${target}.postMessage(message, '*');
+    if (host) host.postMessage(message, hostOrigin);
   }
 
   window.addEventListener('message', function (event) {
+    if (!host || event.source !== host || event.origin !== self.origin) return;
     var message = event.data;
     if (!message || typeof message !== 'object') return;
 
@@ -180,11 +192,14 @@ ${extraBodyHtml}
 export function createMessagePort(getTargetWindow, handlers = {}) {
   let ready = false;
   let pendingQueue = [];
+  // 相手はsrcdocのiframe／window.open()で開いた別ウィンドウで、いずれも本体と同じオリジン。
+  // file://で開いた場合のオリジンは"null"となり、postMessageの宛先には指定できない。
+  const targetOrigin = window.origin && window.origin !== 'null' ? window.origin : '*';
 
   function send(message) {
     const win = getTargetWindow();
     if (ready && win) {
-      win.postMessage(message, '*');
+      win.postMessage(message, targetOrigin);
     } else {
       pendingQueue.push(message);
     }
@@ -192,7 +207,9 @@ export function createMessagePort(getTargetWindow, handlers = {}) {
 
   function handleMessage(event) {
     const win = getTargetWindow();
-    if (!win || event.source !== win) return;
+    // 自分が作ったフレーム／ウィンドウ以外からのメッセージ（他オリジンのページが
+    // window.open()で本体を開いて送ってくる場合を含む）は無視する。
+    if (!win || event.source !== win || event.origin !== window.origin) return;
     const message = event.data;
     if (!message || typeof message !== 'object') return;
 
