@@ -10,6 +10,7 @@
 // そのウィンドウを拡張ディスプレイへ移動し、ウィンドウ側の「全画面」を押す運用とする。
 
 import { getRenderedPayload, getSlideCount, getNoteForIndex, buildFrameDocument, createMessagePort } from './slide-preview.js';
+import { logError } from './errors.js';
 
 const NO_NOTE_TEXT = 'スピーカーノートはありません';
 const NO_NEXT_TEXT = 'これが最後のスライドです';
@@ -199,16 +200,29 @@ export function start() {
   if (presenting) return true;
   if (!getRenderedPayload() || getSlideCount() === 0) return false;
 
-  popupWindow = window.open(
-    '',
-    'markdownutil-presenter',
-    'width=1024,height=640,menubar=no,toolbar=no,location=no,status=no',
-  );
+  try {
+    popupWindow = window.open(
+      '',
+      'markdownutil-presenter',
+      'width=1024,height=640,menubar=no,toolbar=no,location=no,status=no',
+    );
+  } catch (error) {
+    logError('start: プレゼン用ウィンドウを開けなかった', error);
+    popupWindow = null;
+  }
   if (!popupWindow) return false;
 
-  popupWindow.document.open();
-  popupWindow.document.write(buildFrameDocument('opener', POPUP_EXTRA_HTML, 'MarkdownUtil プレゼン'));
-  popupWindow.document.close();
+  try {
+    popupWindow.document.open();
+    popupWindow.document.write(buildFrameDocument('opener', POPUP_EXTRA_HTML, 'MarkdownUtil プレゼン'));
+    popupWindow.document.close();
+  } catch (error) {
+    // 開けたのに中身を書き込めなかった場合（拡張機能による制限等）。発表者ビューへ切り替える
+    // 前に中途半端な空ウィンドウを閉じ、开始できなかったことを呼び出し側へ伝える。
+    logError('start: プレゼン用ウィンドウの初期化に失敗', error);
+    closePopup();
+    return false;
+  }
 
   popupPort = createMessagePort(() => popupWindow, {
     onMessage: (message) => {
