@@ -218,7 +218,7 @@ export function start() {
     popupWindow.document.close();
   } catch (error) {
     // 開けたのに中身を書き込めなかった場合（拡張機能による制限等）。発表者ビューへ切り替える
-    // 前に中途半端な空ウィンドウを閉じ、开始できなかったことを呼び出し側へ伝える。
+    // 前に中途半端な空ウィンドウを閉じ、開始できなかったことを呼び出し側へ伝える。
     logError('start: プレゼン用ウィンドウの初期化に失敗', error);
     closePopup();
     return false;
