@@ -419,6 +419,9 @@ markdownutil/
 │  ├─ markdown-it/       外部: markdown-it本体（MIT）
 │  ├─ marp/              外部: Marp Core本体（@marp-team/marp-core, MIT）
 │  └─ docx/              外部: docx本体（MIT、v0.6.0で追加。ブラウザ向けESM単一ファイルへ再バンドル）
+├─ test/                 開発用: js/配下のユニットテスト（node --test、依存パッケージなし）
+│  └─ helpers/           開発用: DOMの代用・DOCX展開などのテスト補助
+├─ package.json          開発用: node --testを実行するためだけの定義（配布物には不要）
 ├─ docs/
 │  └─ TESTING.md         実施したテストの記録
 ├─ LICENSES/             サードパーティライセンス文書
@@ -569,6 +572,24 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
 
 実施した変換・操作・異常系・閉域確認の一覧と結果は
 [`docs/TESTING.md`](docs/TESTING.md) に記載しています。
+
+### ユニットテスト
+
+`js/`配下のモジュールに対するユニットテストを`test/`に置いています。Node.js組み込みの
+テストランナー（`node --test`）だけを使い、依存パッケージは追加していません（閉域環境でも
+`npm install`なしに実行できます）。配布物には影響しません。
+
+```bash
+npm test              # ユニットテストの実行（Node.js 20以上）
+npm run test:coverage # カバレッジ付きで実行（Node.js 22以上）
+```
+
+- ブラウザ専用のAPI（DOM・`window.open`・クリップボード）は`test/helpers/fake-dom.js`の
+  最小限の代用で置き換えています。
+- Marp Core・docx・AnyDoc WASMは差し替えずに`vendor/`の本物を読み込みます。DOCXの中身は
+  `test/helpers/docx-zip.js`（`node:zlib`のみ使用）で展開して検証します。
+- `js/app.js`・`js/help.js`は画面全体の組み立て（UI配線）が中心のため、ユニットテストでは
+  なく`docs/TESTING.md`の手動テストで確認しています。
 
 ## 開発メモ（ビルドについて）
 
