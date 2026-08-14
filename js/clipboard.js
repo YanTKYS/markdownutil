@@ -6,6 +6,9 @@
 
 import { logError } from './errors.js';
 
+/** コピーできなかった場合に表示する案内。表示方法（ステータス欄）は呼び出し側の責務。 */
+export const COPY_FAILED_MESSAGE = 'コピーに失敗しました。テキストを選択して手動でコピーしてください。';
+
 /** Clipboard APIが使えない場合の代替手段。一時的なtextareaを経由してコピーする。 */
 function copyViaTextarea(text) {
   const textarea = document.createElement('textarea');

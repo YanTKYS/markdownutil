@@ -3,6 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  外部API・CDN等への通信を制限する。srcdocのiframe・window.open()で開いたプレゼン用
+  ウィンドウ・印刷用のblob URLはこのポリシーを継承するため、スライド表示側にもそのまま効く。
+  - 'unsafe-inline': スライド表示用ドキュメント（slide-preview.js）とMarpが生成する
+    インラインの<script>/<style>に必要。
+  - 'wasm-unsafe-eval': AnyDocのWASM実行に必要（eval/new Functionは許可しない）。
+  - img-src: 外部URL画像は既存仕様（README「外部通信について」参照）として引き続き許可する。
+    Markdownに外部URLの画像を書いた場合、その取得はこのCSPでは制限されない。
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; font-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>MarkdownUtil</title>
 <meta name="description" content="文書をブラウザ内でMarkdownへ変換し、編集・プレビュー・保存できる閉域環境向けツール">
 <link rel="stylesheet" href="css/app.css">

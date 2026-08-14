@@ -12,6 +12,8 @@
 // リモートWebフォントの@import除去）を参考にし、MarkdownUtil向けに再構成したもの。
 
 import { logError } from './errors.js';
+import { escapeHtml, jsonForInlineScript, TOGGLE_FULLSCREEN_JS, SKIP_MODIFIER_KEY_JS } from './inline-html.js';
+import { openTextInNewWindow } from './download.js';
 
 export const THEMES = ['default', 'gaia', 'uncover'];
 
@@ -31,7 +33,7 @@ const SLIDE_SVG_PATTERN = /<svg[^>]*\bdata-marpit-svg\b/g;
    ドキュメント側で描画する。 */
 export function buildFrameDocument(postTarget = 'parent', extraBodyHtml = '', title = '') {
   const target = postTarget === 'opener' ? 'window.opener' : 'parent';
-  const titleTag = title ? `<title>${title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</title>` : '';
+  const titleTag = title ? `<title>${escapeHtml(title)}</title>` : '';
 
   return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">${titleTag}</head><body>
 <style id="marp-style"></style>
@@ -130,11 +132,23 @@ body.is-empty .empty-message { display: flex; }
     if (slide) slide.scrollIntoView({ block: 'center' });
   }
 
+  // 描画指示を受け付ける相手はMarkdownUtil本体（iframeなら親、別ウィンドウならopener）だけ。
+  // このドキュメントのwindowは他オリジンのページからもwindow.open()経由で参照でき、
+  // renderメッセージを偽装されるとMarkdownUtilのオリジンで任意のHTML/スクリプトを
+  // 実行されてしまう（renderは受け取ったHTML内の<script>を意図的に実行する）ため、
+  // 送信元のwindowとオリジンの両方を照合し、一致しないメッセージは捨てる。
+  var host = ${target};
+  // srcdocのiframeやwindow.open()直後の文書はURLが"about:..."のためlocation.originが
+  // "null"になる。ここで必要なのは本体から継承した実際のオリジンなのでself.originを見る。
+  // file://で開いた場合は"null"となり、postMessageの宛先には指定できない。
+  var hostOrigin = self.origin && self.origin !== 'null' ? self.origin : '*';
+
   function post(message) {
-    ${target}.postMessage(message, '*');
+    if (host) host.postMessage(message, hostOrigin);
   }
 
   window.addEventListener('message', function (event) {
+    if (!host || event.source !== host || event.origin !== self.origin) return;
     var message = event.data;
     if (!message || typeof message !== 'object') return;
 
@@ -155,7 +169,7 @@ body.is-empty .empty-message { display: flex; }
   // 処理できるように転送する。Ctrl/Alt等との組み合わせはブラウザの操作
   // （Ctrl+P等）なので転送しない。
   window.addEventListener('keydown', function (event) {
-    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    ${SKIP_MODIFIER_KEY_JS}
     post({ type: 'keydown', key: event.key, shiftKey: event.shiftKey });
   });
   window.addEventListener('click', function () {
@@ -182,6 +196,9 @@ ${extraBodyHtml}
 export function createMessagePort(getTargetWindow, handlers = {}) {
   let ready = false;
   let pendingQueue = [];
+  // 相手はsrcdocのiframe／window.open()で開いた別ウィンドウで、いずれも本体と同じオリジン。
+  // file://で開いた場合のオリジンは"null"となり、postMessageの宛先には指定できない。
+  const targetOrigin = window.origin && window.origin !== 'null' ? window.origin : '*';
 
   function send(message) {
     const win = getTargetWindow();
@@ -190,7 +207,7 @@ export function createMessagePort(getTargetWindow, handlers = {}) {
       return;
     }
     try {
-      win.postMessage(message, '*');
+      win.postMessage(message, targetOrigin);
     } catch (error) {
       // 送信先が途中で閉じられた・再読み込みされた場合。1つの送信先へ送れなくなったことで
       // 他の送信先（発表者ビューの現在・次スライドや投影用ウィンドウ）への同期まで止めないよう、
@@ -202,7 +219,9 @@ export function createMessagePort(getTargetWindow, handlers = {}) {
 
   function handleMessage(event) {
     const win = getTargetWindow();
-    if (!win || event.source !== win) return;
+    // 自分が作ったフレーム／ウィンドウ以外からのメッセージ（他オリジンのページが
+    // window.open()で本体を開いて送ってくる場合を含む）は無視する。
+    if (!win || event.source !== win || event.origin !== window.origin) return;
     const message = event.data;
     if (!message || typeof message !== 'object') return;
 
@@ -406,16 +425,6 @@ function slideSize(html) {
   return viewBox ? { width: viewBox[1], height: viewBox[2] } : { width: '1280', height: '720' };
 }
 
-function escapeHtml(text) {
-  return text.replace(/[&<>"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character]));
-}
-
-// スピーカーノートの本文に "</script>" 等が書かれていても<script>タグを
-// 抜け出さないよう、埋め込み前にエスケープする。
-function jsonForInlineScript(value) {
-  return JSON.stringify(value).replace(/<\/(script)/gi, '<\\/$1');
-}
-
 /**
  * 現在のスライドを単体で開けるHTML文字列を組み立てる。
  * 開いた直後は1枚ずつ表示するスライドショーとして動作し、キーボード・クリック・
@@ -517,14 +526,13 @@ export function buildStandaloneHtml(title, autoPrint) {
     '  });',
     '  document.getElementById("ss-fullscreen").addEventListener("click", function (e) {',
     '    e.stopPropagation();',
-    '    if (document.fullscreenElement) { document.exitFullscreen(); }',
-    '    else if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen().catch(function () {}); }',
+    TOGGLE_FULLSCREEN_JS,
     '  });',
     '',
     '  root.addEventListener("click", function () { next(); });',
     '',
     '  window.addEventListener("keydown", function (event) {',
-    '    if (event.ctrlKey || event.altKey || event.metaKey) return;',
+    `    ${SKIP_MODIFIER_KEY_JS}`,
     '    switch (event.key) {',
     '      case "ArrowRight": case "ArrowDown": case "PageDown": case "Enter": next(); break;',
     '      case "ArrowLeft": case "ArrowUp": case "PageUp": prev(); break;',
@@ -588,19 +596,7 @@ export function openPrintWindow(title) {
   const html = buildStandaloneHtml(title, true);
   if (!html) return false;
 
-  let url = null;
-  try {
-    url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-    const printWindow = window.open(url, '_blank');
-    if (!printWindow) {
-      URL.revokeObjectURL(url);
-      return false;
-    }
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-    return true;
-  } catch (error) {
-    if (url) URL.revokeObjectURL(url);
-    logError('openPrintWindow: 印刷用ウィンドウを開けなかった', error);
-    return false;
-  }
+  // Blob URL生成 → window.open → 成功時は遅延revoke、失敗/例外時は即revoke + 原因記録は
+  // download.jsのopenTextInNewWindow()に委ねる（挙動は従来のopenPrintWindow()と同一）。
+  return openTextInNewWindow(html, 'text/html');
 }

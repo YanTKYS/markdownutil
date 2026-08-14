@@ -1497,3 +1497,219 @@ AnyDocの変換失敗は、注入ではなく不正なZIP構造の`.docx`（41�
   出力されていることで確認した（プロパティ値そのものの検査は行っていない）。
 - Marp解析失敗時にHTML出力を押した場合は、スライドが0枚のためボタン側の
   ガードで何も起きない（エラー文言も出ない）。ファイルが出力されないことは確認済み。
+
+## v0.6.4（Devin並行PR成果の統合）
+
+実施日: 2026-08-14
+方法: v0.6.3までの正式な土台（PR #19マージ後のmain）へ、同じv0.6.2付近から独立して
+作成された3件のPull Requestの成果を統合した。3件をそのままmerge/cherry-pickするのではなく、
+それぞれの意図と実装を読み取ったうえでv0.6.3のエラー処理を維持する形に再構成し、
+`node --test`によるユニットテストと、Playwright（Chromium、CDP接続）による実ブラウザでの
+回帰・セキュリティ確認の両方を実施した。ブラウザ確認は`python3 -m http.server`で
+リポジトリ本体を配信（http://127.0.0.1:8801 ）し、実際のダウンロード・別ウィンドウ（ポップアップ）
+イベントを捕捉して検証した。
+
+### 統合したPR
+
+| PR | 内容 | 統合方針 |
+| --- | --- | --- |
+| [#20](https://github.com/YanTKYS/markdownutil/pull/20) | 共通処理の整理・重複削減（`js/dom.js` / `js/download.js` / `js/inline-html.js`の新設） | 採用。ただしv0.6.3の`logError()`によるエラー処理をこれらの共通モジュール側にも反映させたうえで、app.js/help.js/preview.js/presenter.js/slide-preview.jsを統合ブランチのv0.6.3コードへ合わせて再適用した |
+| [#21](https://github.com/YanTKYS/markdownutil/pull/21) | postMessageの同一オリジン制限・CSP追加 | 採用。`index.html`へCSPを追加し、`slide-preview.js`の`buildFrameDocument()`（iframe/別ウィンドウ側の描画用ドキュメント）と`createMessagePort()`（本体側）の両方に送信元window・オリジンの検証を追加した |
+| [#22](https://github.com/YanTKYS/markdownutil/pull/22) | Node標準機能（`node --test`）のみによるユニットテスト基盤 | 採用。既存11ファイルのテストをそのまま取り込み、v0.6.4で変更した箇所（`buildFrameDocument()`の`postMessage`呼び出し文字列）に合わせて2箇所のアサーションを更新。加えて新設した3モジュール（dom.js/download.js/inline-html.js）・`errors.js`・postMessageのorigin検証・v0.6.3のエラー経路（document.write失敗等）向けのテストを追加した |
+
+### 競合と解消方法
+
+3件は同じv0.6.2付近から派生しており、`js/app.js`・`js/help.js`・`js/presenter.js`・
+`js/slide-preview.js`の変更が重なっていた（特にPR #20とPR #21は、いずれも
+`slide-preview.js`の`buildFrameDocument()`/`createMessagePort()`を変更していた）。
+単純なcherry-pick/mergeでは、PR #19（v0.6.3）のエラー処理を古い実装で上書きしてしまう
+おそれがあったため、以下の優先順位で読み替えながら手動で再構成した。
+
+1. 現在のmain（PR #19 / v0.6.3）のエラー処理・ガード条件をすべて維持する
+2. PR #21のセキュリティ修正（origin検証・CSP）を、v0.6.3のtry/catch・`logError()`と
+   両立する形で組み込む
+3. PR #20の共通化（重複コードの切り出し）を、1・2で確定した実装に合わせて適用する
+4. PR #22のテストコードを、1〜3で確定した最終的な実装へ追従させる
+
+具体的な組み替え箇所:
+
+- **`slide-preview.js`の`createMessagePort().send()`**: PR #19は`win.postMessage(message, '*')`を
+  try/catchで囲み、失敗時は`logError()`のみで他の送信先への同期を止めない実装だった。PR #21は
+  同じ関数を送信先オリジンの算出（`targetOrigin`）付きの実装へ変更していたが、try/catchを
+  持たない版だった。統合では、PR #21の`targetOrigin`算出をtry/catchの**内側**（`win.postMessage(message, targetOrigin)`）に組み込み、両方の要件を満たした
+- **`slide-preview.js`の`buildFrameDocument()`が返す描画用ドキュメント**: PR #20は
+  `escapeHtml()`等をinline-html.jsへ切り出す一方、PR #21は同じ関数へ`host`/`hostOrigin`と
+  送信元検証を追加していた。統合では、PR #20切り出し後のescapeHtml呼び出しを保ったまま、
+  PR #21の`host`/`hostOrigin`変数とメッセージ受信時の検証（`event.source !== host || event.origin !== self.origin`）を追加した
+- **`slide-preview.js`の`openPrintWindow()`**: PR #19はBlob URL生成失敗時の即時revoke・
+  `logError()`記録を持つ実装、PR #20は同じ処理を`download.js`の`openTextInNewWindow()`へ
+  切り出す一方でエラー処理を持たない実装だった。統合では、`download.js`側の
+  `openTextInNewWindow()`にPR #19のtry/catch・即時revoke・`logError()`をすべて移し、
+  `openPrintWindow()`はそれを呼ぶだけにした（挙動は変えていない）
+- **`presenter.js`の`init()`/`syncAll()`**: PR #20の`initFrame()`/`showSlide()`への
+  責務分割はそのまま採用し、PR #19が持つ`window.open()`・`document.write()`の
+  try/catch・`logError()`・空ウィンドウの後始末（`closePopup()`）には触れていない
+- **`app.js`/`help.js`**: PR #20の`downloadBlob`/`downloadTextFile`の切り出し、
+  `setTabSelected()`・`buildCopyButton()`等のDOM生成の共通化を採用しつつ、
+  `saveMarkdown()`/`exportWord()`のtry/catch＋`logError()`＋利用者向けメッセージ
+  （PR #19）はそのまま呼び出し側に残した
+
+### v0.6.3から維持した箇所（回帰なし）
+
+以下はコード上そのまま維持し、後述のユニットテスト・ブラウザ確認の両方で
+回帰していないことを確認した。
+
+- `js/errors.js`・`logError(context, error)`（`[MarkdownUtil]`接頭辞付きでconsoleへ記録）
+- 利用者向けメッセージと開発者向けconsole記録の分離
+- HTML出力・Markdown保存の失敗時に成功扱いしない
+- Word出力失敗時の原因記録（`WordExportError.cause`）
+- 文書プレビュー例外処理・スライドプレビューの予期しないreject処理
+- `window.open()`失敗処理・`document.write()`失敗時の後始末（空ウィンドウを残さない）
+- 印刷用Blob URLの適切な解放
+- `postMessage()`失敗時に他の描画先まで停止させない
+- AnyDoc / Marp / Clipboard等の失敗原因記録
+- `help.close()`の安全なガード・`init()`失敗時の利用者向け表示
+
+### ユニットテスト結果
+
+```
+npm test
+# tests 138
+# suites 0
+# pass 138
+# fail 0
+```
+
+`npm run test:coverage`（`vendor/`・`test/`除外）:
+
+| file | line % | branch % | funcs % |
+| --- | --- | --- | --- |
+| clipboard.js | 100.00 | 100.00 | 100.00 |
+| converter.js | 92.42 | 74.19 | 100.00 |
+| dom.js | 100.00 | 100.00 | 100.00 |
+| download.js | 100.00 | 100.00 | 60.00 |
+| errors.js | 100.00 | 100.00 | 100.00 |
+| inline-html.js | 100.00 | 100.00 | 100.00 |
+| markdown-engine.js | 100.00 | 100.00 | 100.00 |
+| presenter.js | 98.84 | 89.71 | 100.00 |
+| preview.js | 100.00 | 100.00 | 100.00 |
+| samples.js | 100.00 | 100.00 | 100.00 |
+| slide-preview.js | 97.34 | 93.67 | 92.00 |
+| word-export.js | 98.14 | 91.86 | 100.00 |
+| **all files** | **97.92** | **91.12** | **95.51** |
+
+`js/app.js`・`js/help.js`はPR #22の方針を踏襲し、画面全体の組み立て（UI配線）が
+中心のためユニットテストの対象外とし、本章のブラウザ確認で扱った。
+
+新規に追加したテスト（PR #22の既存テストに加えて）:
+
+- `test/dom.test.js` / `test/download.test.js` / `test/inline-html.test.js`:
+  PR #20で切り出した共通モジュール3件。切り出し前にapp.js/help.js/slide-preview.js等へ
+  直書きされていたのと同じ挙動（Blob URLの遅延/即時revoke、`aria-selected`の反映等）を
+  維持していることを確認
+- `test/errors.test.js`: `logError()`が`[MarkdownUtil]`接頭辞付きでcontextとErrorを
+  そのままconsole.errorへ渡すことを確認
+- `test/postmessage-security.test.js`: PR #21のorigin検証を`createMessagePort()`に対して
+  直接検証。正しい送信元window・オリジンからのメッセージは受け付ける、送信元windowが
+  異なるメッセージは拒否する、送信元windowは正しくてもオリジンが異なれば拒否する、
+  送信時は`'*'`ではなく本体自身のオリジンを送信先に指定する（origin不明時のみ`'*'`）、
+  origin検証を追加してもv0.6.3の「1つの送信先の失敗が他の送信先への同期を止めない」
+  エラー処理が維持されることを確認
+- `test/presenter.test.js`に追加: `document.write()`失敗時にfalseを返し空ウィンドウを
+  残さないこと（v0.6.3のエラー処理）、origin検証が有効な状態でも正しいオリジンからの
+  readyで発表者ビューが同期すること、異なるオリジンからのメッセージは同期に反映されないこと
+- 既存の`test/slide-preview-render.test.js`・`test/presenter.test.js`のうち、
+  `buildFrameDocument()`が返す`postMessage`呼び出しの文字列を直接検査していた
+  2箇所は、PR #21のorigin検証を組み込んだ新しい実装（`host.postMessage(message, hostOrigin)`）
+  に合わせてアサーションを更新した（動作の意味は変えていない）
+
+### ブラウザ回帰結果
+
+Playwright（Chromium、実ブラウザ）で、`http://127.0.0.1:8801` に配信した本体を
+1セッション内で一通り自動操作して確認した（`download`イベント・別ウィンドウ
+（`page`イベント）を実際に捕捉）。
+
+| # | 内容 | 結果 |
+| --- | --- | --- |
+| 1 | 初期表示（エディタ・ステータス表示） | OK |
+| 2 | 文書プレビュー（見出し・表・コード・強調） | OK |
+| 3 | Markdownコピー（Clipboard API、成功メッセージ） | OK |
+| 4 | Word出力（`document.docx`のダウンロード） | OK |
+| 5 | AnyDoc変換（出力した`.docx`を読み込み直し、`→ Markdown変換完了`・見出しを含む） | OK |
+| 6 | スライド表示（front matter付きMarkdownで「2枚」） | OK |
+| 7 | スライドHTML出力（ファイルのダウンロード） | OK |
+| 8 | 印刷（Blob URLの別タブが開く） | OK |
+| 9 | プレゼン表示（投影用ウィンドウが開く） | OK |
+| 10 | 発表者ビュー・スピーカーノート（「1枚目のノート」を表示） | OK |
+| 11 | 発表者ビューの現在位置（`1 / 2`）・「次へ」で`2 / 2` | OK |
+| 12 | プレゼン終了で投影用ウィンドウが閉じる | OK |
+| 13 | ヘルプの開閉・タブ切替（Markdownタブ）・Escで閉じる | OK |
+| 14 | 外部通信0件（`http://127.0.0.1:8801`以外へのリクエストなし） | OK |
+| 15 | consoleエラー0件（`favicon.ico`の404を除く） | OK |
+
+v0.1.0〜v0.6.3で個別に確認済みのテーマ変更・キーボード操作・focus trap・
+背景クリック・多重クリック防止・Word生成中のファイル切替安全性等は、実装箇所を
+変更していないため今回のPlaywright確認では再実行していない（コードの変更範囲は
+dom.js/download.js/inline-html.jsへの切り出しとslide-preview.jsのorigin検証・
+CSP追加のみで、これらの機能のロジック自体には触れていない）。
+
+### セキュリティ確認
+
+| # | 内容 | 結果 |
+| --- | --- | --- |
+| 1 | CSP: `connect-src 'self'`により、ページ内からの外部ホストへの`fetch()`が拒否される | OK（`Failed to fetch`で拒否） |
+| 2 | CSP下でも文書プレビュー・スライド表示・Word出力・HTML出力・印刷・プレゼン表示が正常に動作する（上記ブラウザ回帰と同一セッションで確認） | OK |
+| 3 | CSP下でもAnyDoc WASM（`wasm-unsafe-eval`）が動作する（AnyDoc変換の回帰テストと同一） | OK |
+| 4 | CSP下でもMarp・スライド描画用iframeのインラインscript（`unsafe-inline`）が動作する | OK |
+| 5 | Markdown中の`<script>`・`onerror`属性がプレビューで実行されない（`html: false`、CSP双方の効果） | OK |
+| 6 | `createMessagePort()`は送信元window・オリジンが一致しないメッセージを拒否する（`test/postmessage-security.test.js`で単体確認） | OK |
+| 7 | `createMessagePort()`の送信時オリジン指定は`'*'`ではなく本体自身のオリジンを使う（origin不明時のみ`'*'`にフォールバック） | OK |
+| 8 | 外部通信0件（ブラウザ回帰と同一セッションで確認） | OK |
+
+origin検証（#6・#7）はNode上のユニットテストで`createMessagePort()`を直接検証した。
+実際に別オリジンのページから`window.open()`経由でMarkdownUtilの窓を取得し
+`render`メッセージを送りつける攻撃の再現までは、テスト用の別オリジンサーバーを
+別途用意する必要があり、今回のPlaywright確認には含めていない（「既知の制限」参照）。
+
+### IIS / GitHub Pages観点
+
+- CSPは`<meta http-equiv="Content-Security-Policy">`で`index.html`に直接記述しており、
+  IIS側の追加設定（レスポンスヘッダーの追加）を必要としない。IIS実機での追加確認は
+  今回のセッションでは行っていない（`.wasm`/`.mjs`のMIME設定については既存README記載のとおり）
+- `script-src`/`style-src`の`'unsafe-inline'`は、スライド描画用ドキュメント（`srcdoc`の
+  iframe・`window.open('')`で開くプレゼン専用ウィンドウ）とMarpが生成するインライン
+  `<script>`/`<style>`に必要なため許可している。これらはIIS（HTTP配信）・GitHub Pages
+  （HTTPS配信）のどちらでも同じ`srcdoc`/`window.open('')`の仕組みを使うため、配信方式による
+  差異は無い
+- `img-src`は`http:`/`https:`を含めており、Markdown内の外部URL画像は既存README
+  「外部通信について（外部URL画像の注意）」の記載どおり、CSP追加後も変わらず表示できる
+  （閉域環境では引き続き利用者の注意が必要）
+- `connect-src 'self'`により、万一Markdown内や依存ライブラリの経路で`fetch`/`XMLHttpRequest`が
+  発生しても外部ホストへは届かない。これはIIS（閉域環境）・GitHub Pages（インターネット
+  接続あり）のどちらの配信であっても、MarkdownUtil自身が外部通信を行わないという
+  既存方針（README「閉域環境での利用について」）を、ブラウザ側でも強制する形になる
+- GitHub Pages（HTTPS）・IIS（HTTP、庁内閉域環境）のいずれでも、`window.origin`は
+  `http:`/`https:`いずれのスキームでも`'null'`にならない値を返すため、
+  `createMessagePort()`のorigin指定ロジック（`window.origin && window.origin !== 'null' ? window.origin : '*'`）は
+  同じ経路で実オリジンを使う。`file://`で直接開いた場合のみ`origin`が`'null'`になり、
+  从来通り`'*'`にフォールバックする（HTTPS前提のAPIへは変更していない）
+
+### 外部通信確認
+
+ブラウザ回帰・セキュリティ確認のいずれも、Playwrightで全リクエストを記録し、
+配信元オリジン（`http://127.0.0.1:8801`）とBlob URL以外への通信が0件であることを
+確認した（文書変換・プレビュー描画・コピー・保存・スライド表示・HTML出力・印刷・
+プレゼン表示・ヘルプの一連操作を含む）。
+
+### 既知の制限（v0.6.4で追加）
+
+- 別オリジンのページが実際に`window.open()`でMarkdownUtilの窓を取得し、偽装した
+  `render`メッセージを送りつける攻撃そのものは、`createMessagePort()`の
+  ユニットテストで送信元window・オリジンの検証ロジックを直接確認したにとどまり、
+  2オリジンを用意した実ブラウザでのエンドツーエンド攻撃再現は行っていない。
+- IIS実機での`Content-Security-Policy`（`<meta>`タグ）の動作確認は、今回のセッションでは
+  実施していない（IIS特有のヘッダー付与や`web.config`との相互作用は無いはずだが、
+  実機配置後の確認を推奨する）。
+- テーマ変更・キーボード操作・focus trap・背景クリック・多重クリック防止等、
+  今回コードを変更していない機能については、v0.1.0〜v0.6.3で確認済みの内容を
+  再確認していない（実装箇所そのものに変更が無いため）。

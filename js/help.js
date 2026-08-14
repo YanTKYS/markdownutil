@@ -8,7 +8,8 @@
 // onInsertDocumentSample / onInsertSlideSample で通知するだけで、サンプル本文の
 // 保持やエディタ・Marpへの反映はapp.js（とsamples.js）の責務とする。
 
-import { copyText } from './clipboard.js';
+import { copyText, COPY_FAILED_MESSAGE } from './clipboard.js';
+import { createElement as el, setTabSelected } from './dom.js';
 
 const MARKDOWN_ITEMS = [
   {
@@ -174,144 +175,129 @@ let els = null; // { openBtn, overlay, dialog, closeBtn, tabButtons, panels, sta
 let lastFocused = null;
 let rendered = false;
 
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
+/** クリックでテキストをコピーするボタン。ラベルは`flashCopied()`が一時的に書き換える。 */
+function buildCopyButton(className, label, text) {
+  const button = el('button', className, label);
+  button.type = 'button';
+  button.addEventListener('click', () => copySnippet(text, button));
+  return button;
 }
 
 function buildItem(item) {
-  const article = document.createElement('article');
-  article.className = 'help-item';
+  const article = el('article', 'help-item');
 
   article.appendChild(el('h3', 'help-item__title', item.title));
   article.appendChild(el('p', 'help-item__desc', item.desc));
 
-  const codeWrap = document.createElement('div');
-  codeWrap.className = 'help-item__code-wrap';
+  const codeWrap = el('div', 'help-item__code-wrap');
 
-  const pre = document.createElement('pre');
-  pre.className = 'help-item__code';
-  const code = document.createElement('code');
-  code.textContent = item.code;
-  pre.appendChild(code);
+  const pre = el('pre', 'help-item__code');
+  pre.appendChild(el('code', null, item.code));
   codeWrap.appendChild(pre);
-
-  const copyBtn = document.createElement('button');
-  copyBtn.type = 'button';
-  copyBtn.className = 'help-item__copy-btn';
-  copyBtn.textContent = 'コピー';
-  copyBtn.addEventListener('click', () => copySnippet(item.code, copyBtn));
-  codeWrap.appendChild(copyBtn);
+  codeWrap.appendChild(buildCopyButton('help-item__copy-btn', 'コピー', item.code));
 
   article.appendChild(codeWrap);
   return article;
 }
 
 function buildPanel(items) {
-  const section = document.createElement('div');
-  section.className = 'help-panel';
+  const section = el('div', 'help-panel');
   items.forEach((item) => section.appendChild(buildItem(item)));
   return section;
 }
 
+/** 見出し + 本文（説明・補足）という、解説タブで繰り返し使う組み合わせ。 */
+function appendSection(wrap, title, ...paragraphs) {
+  wrap.appendChild(el('h3', 'help-section__title', title));
+  paragraphs.forEach(([className, text]) => wrap.appendChild(el('p', className, text)));
+}
+
+/** 文字列の配列を、そのままリスト（`ul` / `ol`）の項目として並べる。 */
+function buildList(tag, className, texts) {
+  const list = el(tag, className);
+  texts.forEach((text) => list.appendChild(el('li', null, text)));
+  return list;
+}
+
+/** 「使い方」タブの「サンプルで試す」ボタン。押されたことをapp.js側へ通知するだけ。 */
+function buildSampleButton(label, callbackName) {
+  const button = el('button', 'help-guide__sample-btn', label);
+  button.type = 'button';
+  button.addEventListener('click', () => {
+    if (typeof els[callbackName] === 'function') els[callbackName]();
+  });
+  return button;
+}
+
 function buildGuidePanel() {
-  const wrap = document.createElement('div');
-  wrap.className = 'help-guide';
+  const wrap = el('div', 'help-guide');
 
   wrap.appendChild(el('p', 'help-guide__intro', 'MarkdownUtilは、Office文書やPDFをMarkdownへ変換し、そのままブラウザ上で編集・「文書」「スライド」表示ができるツール。文書変換・編集・表示はブラウザ内で処理し、MarkdownUtil自身は外部APIやCDNへ通信しない。'));
 
-  wrap.appendChild(el('h3', 'help-section__title', 'できること'));
-  const features = el('ul', 'help-guide__list');
-  GUIDE_FEATURES.forEach((text) => features.appendChild(el('li', null, text)));
-  wrap.appendChild(features);
+  appendSection(wrap, 'できること');
+  wrap.appendChild(buildList('ul', 'help-guide__list', GUIDE_FEATURES));
 
-  wrap.appendChild(el('h3', 'help-section__title', '基本的な利用の流れ'));
-  const steps = el('ol', 'help-guide__steps');
-  GUIDE_STEPS.forEach((text) => steps.appendChild(el('li', null, text)));
-  wrap.appendChild(steps);
+  appendSection(wrap, '基本的な利用の流れ');
+  wrap.appendChild(buildList('ol', 'help-guide__steps', GUIDE_STEPS));
 
-  const flow = document.createElement('div');
-  flow.className = 'help-flow';
+  const flow = el('div', 'help-flow');
   flow.appendChild(el('div', 'help-flow__box', 'Office文書 / PDF'));
   flow.appendChild(el('div', 'help-flow__arrow', '↓ 変換'));
   flow.appendChild(el('div', 'help-flow__box', 'Markdown（編集可能）'));
   flow.appendChild(el('div', 'help-flow__arrow', '↓ 表示切替'));
-  const branch = document.createElement('div');
-  branch.className = 'help-flow__branch';
+  const branch = el('div', 'help-flow__branch');
   branch.appendChild(el('div', 'help-flow__box', '文書タブ'));
   branch.appendChild(el('div', 'help-flow__box', 'スライドタブ'));
   flow.appendChild(branch);
   wrap.appendChild(flow);
 
-  wrap.appendChild(el('h3', 'help-section__title', '読み込めるファイル'));
-  wrap.appendChild(el('p', 'help-guide__text', GUIDE_FILE_TYPES));
-  wrap.appendChild(el('p', 'help-guide__note', GUIDE_FILE_NOTE));
+  appendSection(
+    wrap,
+    '読み込めるファイル',
+    ['help-guide__text', GUIDE_FILE_TYPES],
+    ['help-guide__note', GUIDE_FILE_NOTE],
+  );
 
-  wrap.appendChild(el('h3', 'help-section__title', '「文書」タブと「スライド」タブの違い'));
-  const defs = document.createElement('dl');
-  defs.className = 'help-guide__defs';
+  appendSection(wrap, '「文書」タブと「スライド」タブの違い');
+  const defs = el('dl', 'help-guide__defs');
   GUIDE_DOC_VS_SLIDE.forEach((entry) => {
     defs.appendChild(el('dt', null, entry.term));
     defs.appendChild(el('dd', null, entry.desc));
   });
   wrap.appendChild(defs);
 
-  wrap.appendChild(el('h3', 'help-section__title', 'Wordとして保存'));
-  wrap.appendChild(el('p', 'help-guide__text', WORD_EXPORT_INTRO));
-  wrap.appendChild(el('p', 'help-guide__note', WORD_EXPORT_NOTE));
+  appendSection(
+    wrap,
+    'Wordとして保存',
+    ['help-guide__text', WORD_EXPORT_INTRO],
+    ['help-guide__note', WORD_EXPORT_NOTE],
+  );
 
-  wrap.appendChild(el('h3', 'help-section__title', 'サンプルで試す'));
-  wrap.appendChild(el('p', 'help-guide__text', SAMPLE_INTRO));
-  const sampleActions = document.createElement('div');
-  sampleActions.className = 'help-guide__sample-actions';
-
-  const docSampleBtn = document.createElement('button');
-  docSampleBtn.type = 'button';
-  docSampleBtn.className = 'help-guide__sample-btn';
-  docSampleBtn.textContent = '文書サンプルを開く';
-  docSampleBtn.addEventListener('click', () => {
-    if (typeof els.onInsertDocumentSample === 'function') els.onInsertDocumentSample();
-  });
-  sampleActions.appendChild(docSampleBtn);
-
-  const slideSampleBtn = document.createElement('button');
-  slideSampleBtn.type = 'button';
-  slideSampleBtn.className = 'help-guide__sample-btn';
-  slideSampleBtn.textContent = 'スライドサンプルを開く';
-  slideSampleBtn.addEventListener('click', () => {
-    if (typeof els.onInsertSlideSample === 'function') els.onInsertSlideSample();
-  });
-  sampleActions.appendChild(slideSampleBtn);
-
+  appendSection(wrap, 'サンプルで試す', ['help-guide__text', SAMPLE_INTRO]);
+  const sampleActions = el('div', 'help-guide__sample-actions');
+  sampleActions.appendChild(buildSampleButton('文書サンプルを開く', 'onInsertDocumentSample'));
+  sampleActions.appendChild(buildSampleButton('スライドサンプルを開く', 'onInsertSlideSample'));
   wrap.appendChild(sampleActions);
 
   return wrap;
 }
 
 function buildPresentationPanel() {
-  const wrap = document.createElement('div');
-  wrap.className = 'help-guide';
+  const wrap = el('div', 'help-guide');
 
   wrap.appendChild(el('p', 'help-guide__intro', 'スライド表示の内容を、別ウィンドウを使って発表用に映すための機能。'));
 
-  wrap.appendChild(el('h3', 'help-section__title', 'プレゼン表示（外部ディスプレイの利用）'));
-  const steps = el('ol', 'help-guide__steps');
-  PRESENTATION_STEPS.forEach((text) => steps.appendChild(el('li', null, text)));
-  wrap.appendChild(steps);
+  appendSection(wrap, 'プレゼン表示（外部ディスプレイの利用）');
+  wrap.appendChild(buildList('ol', 'help-guide__steps', PRESENTATION_STEPS));
   wrap.appendChild(el('p', 'help-guide__note', 'HTTP配信（IISでの閉域環境配置）を前提としているため、外部ディスプレイへの自動移動・自動全画面化は行わない。ウィンドウの移動・全画面化は手動で行う。'));
 
-  wrap.appendChild(el('h3', 'help-section__title', '発表者ビュー'));
-  const features = el('ul', 'help-guide__list');
-  PRESENTER_VIEW_FEATURES.forEach((text) => features.appendChild(el('li', null, text)));
-  wrap.appendChild(features);
+  appendSection(wrap, '発表者ビュー');
+  wrap.appendChild(buildList('ul', 'help-guide__list', PRESENTER_VIEW_FEATURES));
 
-  wrap.appendChild(el('h3', 'help-section__title', 'スピーカーノート'));
+  appendSection(wrap, 'スピーカーノート');
   wrap.appendChild(buildItem(PRESENTATION_NOTE_EXAMPLE));
 
-  wrap.appendChild(el('h3', 'help-section__title', 'HTML出力'));
-  wrap.appendChild(el('p', 'help-guide__text', HTML_EXPORT_NOTE));
+  appendSection(wrap, 'HTML出力', ['help-guide__text', HTML_EXPORT_NOTE]);
 
   return wrap;
 }
@@ -336,7 +322,7 @@ async function copySnippet(text, triggerBtn) {
     notify('記法例をコピーしました', 'success');
     flashCopied(triggerBtn);
   } else {
-    notify('コピーに失敗しました。テキストを選択して手動でコピーしてください。', 'error');
+    notify(COPY_FAILED_MESSAGE, 'error');
   }
   // 代替手段（execCommand）は一時的なtextareaへフォーカスを移すため、
   // 呼び出し元の「コピー」ボタンへフォーカスを戻す。
@@ -365,8 +351,7 @@ function renderPanelsOnce() {
 function setTab(name) {
   TAB_NAMES.forEach((tabName) => {
     const isActive = tabName === name;
-    els.tabButtons[tabName].classList.toggle('is-active', isActive);
-    els.tabButtons[tabName].setAttribute('aria-selected', String(isActive));
+    setTabSelected(els.tabButtons[tabName], isActive);
     els.panels[tabName].hidden = !isActive;
   });
 }
@@ -376,7 +361,7 @@ const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, select, texta
 /** ダイアログ内で、今実際に見えている（隠れたタブパネル内ではない）フォーカス可能要素。 */
 function focusableElements() {
   return Array.from(els.dialog.querySelectorAll(FOCUSABLE_SELECTOR))
-    .filter((el) => el.offsetParent !== null);
+    .filter((element) => element.offsetParent !== null);
 }
 
 // role="dialog" aria-modal="true"を名乗る以上、Tab/Shift+Tabがダイアログの外
