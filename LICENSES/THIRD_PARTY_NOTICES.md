@@ -54,6 +54,30 @@ MarkdownUtilが同梱している外部ライブラリの一覧です。いず�
 | `postcss-selector-parser` | MIT | `LICENSES/marp-core-dependencies/postcss-selector-parser-LICENSE.txt` |
 | `xss` | MIT | `LICENSES/marp-core-dependencies/xss-LICENSE.txt` |
 
+## docx（v0.6.0で追加）
+
+| 項目 | 内容 |
+| --- | --- |
+| ライブラリ名 | `docx` |
+| バージョン | 9.7.1 |
+| ライセンス | MIT License（Copyright (c) 2016 Dolan） |
+| 入手元 | npm レジストリ: https://www.npmjs.com/package/docx （ソース: https://github.com/dolanmiu/docx、ドキュメント: https://docx.js.org） |
+| 利用目的 | 現在のMarkdownをMicrosoft Word形式（.docx）としてブラウザ内で生成するため |
+| 配置場所 | `vendor/docx/`（npmパッケージの`dist/index.mjs`を`esbuild`でブラウザ向けESM単一ファイルへ再バンドル・minifyした`docx.esm.min.mjs`） |
+| ライセンス全文 | `vendor/docx/LICENSE`、`LICENSES/docx-dependencies/`（同梱している依存ライブラリ分） |
+
+`docx`は内部で以下のライブラリをバンドルしている（`docx`自身のpackage.jsonが宣言する直接依存）。
+いずれも`vendor/docx/docx.esm.min.mjs`に含まれており、個別のファイルとしては配置していないが、
+ライセンス全文を`LICENSES/docx-dependencies/`に同梱している。
+
+| ライブラリ名 | ライセンス | ライセンス全文 |
+| --- | --- | --- |
+| `jszip` | MIT（デュアルライセンスのうちMITを採用） | `LICENSES/docx-dependencies/jszip-LICENSE.txt` |
+| `nanoid` | MIT | `LICENSES/docx-dependencies/nanoid-LICENSE.txt` |
+| `hash.js` | MIT | `LICENSES/docx-dependencies/hash.js-LICENSE.txt` |
+| `xml` | MIT | `LICENSES/docx-dependencies/xml-LICENSE.txt` |
+| `xml-js` | MIT | `LICENSES/docx-dependencies/xml-js-LICENSE.txt` |
+
 ## slide / iSlide との関係
 
 MarkdownUtilのスライドプレビュー機能は、[`slide`リポジトリ](https://github.com/YanTKYS/slide)の

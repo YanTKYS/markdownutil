@@ -10,11 +10,13 @@ import * as slidePreview from './slide-preview.js';
 import * as presenter from './presenter.js';
 import * as help from './help.js';
 import { DOCUMENT_SAMPLE, SLIDE_SAMPLE } from './samples.js';
+import { buildDocxBlob, WordExportError } from './word-export.js';
 
 const openBtn = document.getElementById('open-btn');
 const fileInput = document.getElementById('file-input');
 const saveBtn = document.getElementById('save-btn');
 const copyBtn = document.getElementById('copy-btn');
+const wordExportBtn = document.getElementById('word-export-btn');
 const clearBtn = document.getElementById('clear-btn');
 const statusBar = document.getElementById('status-bar');
 const editor = document.getElementById('editor');
@@ -56,6 +58,7 @@ const INITIAL_STATUS = 'ファイルを開くか、Markdownをドラッグ&ド�
 
 const state = {
   isConverting: false,
+  isExportingWord: false,
   saveFilename: 'document.md',
   mode: 'doc', // 'doc' | 'slide'
 };
@@ -77,6 +80,7 @@ function setConverting(value) {
   editor.disabled = value;
   clearBtn.disabled = value;
   slideThemeSelect.disabled = value;
+  wordExportBtn.disabled = value || state.isExportingWord;
 }
 
 function debounce(fn, waitMs) {
@@ -103,8 +107,7 @@ function titleFromSaveFilename() {
   return (state.saveFilename || 'document.md').replace(/\.(md|markdown)$/i, '');
 }
 
-function downloadTextFile(filename, text, mimeType) {
-  const blob = new Blob([text], { type: `${mimeType};charset=utf-8` });
+function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -113,6 +116,14 @@ function downloadTextFile(filename, text, mimeType) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadTextFile(filename, text, mimeType) {
+  downloadBlob(filename, new Blob([text], { type: `${mimeType};charset=utf-8` }));
+}
+
+function docxFilenameFromSaveFilename() {
+  return (state.saveFilename || 'document.md').replace(/\.(md|markdown)$/i, '.docx');
 }
 
 /* ---------- プレビュー（文書 / スライド） ---------- */
@@ -245,6 +256,32 @@ function saveMarkdown() {
   const filename = state.saveFilename || 'document.md';
   downloadTextFile(filename, editor.value, 'text/markdown');
   setStatus(`${filename} を保存しました`, 'success');
+}
+
+async function exportWord() {
+  if (state.isConverting || state.isExportingWord) return;
+  if (!editor.value.trim()) {
+    setStatus('Word出力するMarkdownがありません。', 'error');
+    return;
+  }
+
+  state.isExportingWord = true;
+  wordExportBtn.disabled = true;
+  setStatus('Wordファイルを作成しています...', 'busy');
+  try {
+    const blob = await buildDocxBlob(editor.value);
+    const filename = docxFilenameFromSaveFilename();
+    downloadBlob(filename, blob);
+    setStatus(`${filename} を保存しました`, 'success');
+  } catch (error) {
+    const message = error instanceof WordExportError
+      ? error.message
+      : 'Wordファイルを作成できませんでした。';
+    setStatus(message, 'error');
+  } finally {
+    state.isExportingWord = false;
+    wordExportBtn.disabled = state.isConverting;
+  }
 }
 
 function clearAll() {
@@ -406,6 +443,7 @@ function init() {
 
   saveBtn.addEventListener('click', saveMarkdown);
   copyBtn.addEventListener('click', copyMarkdown);
+  wordExportBtn.addEventListener('click', exportWord);
   clearBtn.addEventListener('click', clearAll);
 
   editor.addEventListener('input', debouncedRefreshActive);

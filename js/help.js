@@ -118,6 +118,7 @@ const GUIDE_FEATURES = [
   '編集結果を「スライド」タブで表示する（Marp記法対応）',
   'Markdownをテキストファイルとして保存する',
   '編集内容をクリップボードへコピーする',
+  'Markdownを Word ファイル（.docx）として保存する',
   'スライドをHTMLファイルとして書き出す（発表用スライドショーとして単体で開ける）',
   'スライドを印刷・PDF化する',
 ];
@@ -139,6 +140,9 @@ const GUIDE_DOC_VS_SLIDE = [
 ];
 
 const SAMPLE_INTRO = 'MarkdownUtilの使い方を、実際のMarkdownを編集しながら試せます。';
+
+const WORD_EXPORT_INTRO = '上部の「Word出力」で、現在のMarkdownをWord（.docx）形式で保存できます。ブラウザ内で生成するため、保存時に本文が外部へ送信されることはありません。';
+const WORD_EXPORT_NOTE = '見出し・太字・斜体・箇条書き・番号付きリスト・表・コード・引用などに対応しています。画像の埋め込みなど一部のMarkdown要素はWord出力に対応していません。';
 
 // 「プレゼン」タブに載せる内容。
 const PRESENTATION_STEPS = [
@@ -251,6 +255,10 @@ function buildGuidePanel() {
     defs.appendChild(el('dd', null, entry.desc));
   });
   wrap.appendChild(defs);
+
+  wrap.appendChild(el('h3', 'help-section__title', 'Wordとして保存'));
+  wrap.appendChild(el('p', 'help-guide__text', WORD_EXPORT_INTRO));
+  wrap.appendChild(el('p', 'help-guide__note', WORD_EXPORT_NOTE));
 
   wrap.appendChild(el('h3', 'help-section__title', 'サンプルで試す'));
   wrap.appendChild(el('p', 'help-guide__text', SAMPLE_INTRO));
