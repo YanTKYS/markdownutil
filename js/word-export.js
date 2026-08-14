@@ -41,6 +41,12 @@ const CODE_BORDER_COLOR = 'CCCCCC';
 const TABLE_HEADER_SHADING_FILL = 'E7E7E7';
 const QUOTE_BORDER_COLOR = 'BFBFBF';
 const QUOTE_INDENT_TWIPS = 360;
+// リスト1階層あたりの字下げ幅（twips）。番号付きリストのレベル定義と、
+// リスト項目の2段落目以降の字下げの両方で使い、両者の位置をそろえる。
+const LIST_INDENT_TWIPS = 720;
+// 表の既定幅（twips）。A4縦（11906）から左右の余白（1440×2）を引いた本文幅。
+// 列ごとの幅を明示しないと、Word側が極端に狭い列幅で表を描画することがある。
+const TABLE_WIDTH_TWIPS = 9026;
 
 const HEADING_LEVELS = {
   1: HeadingLevel.HEADING_1,
@@ -53,13 +59,24 @@ const HEADING_LEVELS = {
 
 export class WordExportError extends Error {}
 
+/** 指定した階層（0始まり）のリストの字下げ幅。 */
+function listIndentLeft(level) {
+  return LIST_INDENT_TWIPS * (level + 1);
+}
+
 /** 番号付きリスト1つ分（最大3階層）のレベル定義。リストごとに新しいオブジェクトを作る。 */
 function buildOrderedListLevels() {
-  return [
-    { level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.START, style: { paragraph: { indent: { left: 720, hanging: 360 } } } },
-    { level: 1, format: LevelFormat.DECIMAL, text: '%2.', alignment: AlignmentType.START, style: { paragraph: { indent: { left: 1440, hanging: 360 } } } },
-    { level: 2, format: LevelFormat.DECIMAL, text: '%3.', alignment: AlignmentType.START, style: { paragraph: { indent: { left: 2160, hanging: 360 } } } },
-  ];
+  const levels = [];
+  for (let level = 0; level <= MAX_LIST_LEVEL; level += 1) {
+    levels.push({
+      level,
+      format: LevelFormat.DECIMAL,
+      text: `%${level + 1}.`,
+      alignment: AlignmentType.START,
+      style: { paragraph: { indent: { left: listIndentLeft(level), hanging: 360 } } },
+    });
+  }
+  return levels;
 }
 
 /**
@@ -158,10 +175,19 @@ function buildParagraph(tokens, index, listStack, quoteDepth) {
 
   if (listStack.length > 0) {
     const top = listStack[listStack.length - 1];
-    if (top.type === 'bullet') {
-      options.bullet = { level: top.level };
+    if (top.needsMarker) {
+      // リスト項目の1段落目。ここにだけ中黒/番号を付ける。
+      if (top.type === 'bullet') {
+        options.bullet = { level: top.level };
+      } else {
+        options.numbering = { reference: top.reference, level: top.level };
+      }
+      top.needsMarker = false;
     } else {
-      options.numbering = { reference: top.reference, level: top.level };
+      // 1つのリスト項目に複数の段落がある場合（項目に続く補足説明など）、
+      // 2段落目以降にも中黒や番号を付けると別の項目に見えてしまう。記号は付けず、
+      // 項目の本文と同じ位置まで字下げして続きだと分かるようにする。
+      options.indent = { left: listIndentLeft(top.level) };
     }
   } else if (quoteDepth > 0) {
     options.indent = { left: QUOTE_INDENT_TWIPS * quoteDepth };
@@ -204,11 +230,13 @@ function buildCodeBlockParagraph(content) {
 function buildTable(tokens, startIndex) {
   let i = startIndex + 1;
   const rows = [];
+  let columnCount = 0;
 
   while (tokens[i].type !== 'table_close') {
     if (tokens[i].type === 'tr_open') {
       const result = buildTableRow(tokens, i);
       rows.push(result.row);
+      columnCount = Math.max(columnCount, result.cellCount);
       i = result.nextIndex;
     } else {
       i += 1;
@@ -216,8 +244,12 @@ function buildTable(tokens, startIndex) {
   }
   i += 1; // table_closeを読み飛ばす
 
+  // 列幅を明示しないと、Wordが本文幅いっぱいではなく極端に狭い幅で表を描画することがある。
+  // 本文幅を列数で等分し、どの列にも同じ幅を割り当てる。
+  const columnWidth = Math.floor(TABLE_WIDTH_TWIPS / Math.max(columnCount, 1));
   const table = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
+    columnWidths: Array(Math.max(columnCount, 1)).fill(columnWidth),
     rows,
   });
   return { table, nextIndex: i };
@@ -244,7 +276,7 @@ function buildTableRow(tokens, startIndex) {
   }
   i += 1; // tr_closeを読み飛ばす
 
-  return { row: new TableRow({ children: cells }), nextIndex: i };
+  return { row: new TableRow({ children: cells }), nextIndex: i, cellCount: cells.length };
 }
 
 /**
@@ -269,6 +301,11 @@ function tokensToDocxChildren(tokens) {
       case 'paragraph_open':
         children.push(buildParagraph(tokens, i, listStack, quoteDepth));
         i += 3;
+        break;
+      case 'list_item_open':
+        // 次に現れる段落がこの項目の1段落目。そこにだけ中黒/番号を付ける。
+        if (listStack.length > 0) listStack[listStack.length - 1].needsMarker = true;
+        i += 1;
         break;
       case 'bullet_list_open':
         listStack.push({ type: 'bullet', level: Math.min(listStack.length, MAX_LIST_LEVEL) });
