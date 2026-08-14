@@ -11,6 +11,9 @@
 // （Marp Coreの初期化オプション、iframe + postMessageによるプレビュー分離、
 // リモートWebフォントの@import除去）を参考にし、MarkdownUtil向けに再構成したもの。
 
+import { escapeHtml, jsonForInlineScript, TOGGLE_FULLSCREEN_JS, SKIP_MODIFIER_KEY_JS } from './inline-html.js';
+import { openTextInNewWindow } from './download.js';
+
 export const THEMES = ['default', 'gaia', 'uncover'];
 
 const FRONT_MATTER_PATTERN = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(\r?\n|$)/;
@@ -29,7 +32,7 @@ const SLIDE_SVG_PATTERN = /<svg[^>]*\bdata-marpit-svg\b/g;
    ドキュメント側で描画する。 */
 export function buildFrameDocument(postTarget = 'parent', extraBodyHtml = '', title = '') {
   const target = postTarget === 'opener' ? 'window.opener' : 'parent';
-  const titleTag = title ? `<title>${title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</title>` : '';
+  const titleTag = title ? `<title>${escapeHtml(title)}</title>` : '';
 
   return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">${titleTag}</head><body>
 <style id="marp-style"></style>
@@ -153,7 +156,7 @@ body.is-empty .empty-message { display: flex; }
   // 処理できるように転送する。Ctrl/Alt等との組み合わせはブラウザの操作
   // （Ctrl+P等）なので転送しない。
   window.addEventListener('keydown', function (event) {
-    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    ${SKIP_MODIFIER_KEY_JS}
     post({ type: 'keydown', key: event.key, shiftKey: event.shiftKey });
   });
   window.addEventListener('click', function () {
@@ -393,16 +396,6 @@ function slideSize(html) {
   return viewBox ? { width: viewBox[1], height: viewBox[2] } : { width: '1280', height: '720' };
 }
 
-function escapeHtml(text) {
-  return text.replace(/[&<>"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character]));
-}
-
-// スピーカーノートの本文に "</script>" 等が書かれていても<script>タグを
-// 抜け出さないよう、埋め込み前にエスケープする。
-function jsonForInlineScript(value) {
-  return JSON.stringify(value).replace(/<\/(script)/gi, '<\\/$1');
-}
-
 /**
  * 現在のスライドを単体で開けるHTML文字列を組み立てる。
  * 開いた直後は1枚ずつ表示するスライドショーとして動作し、キーボード・クリック・
@@ -504,14 +497,13 @@ export function buildStandaloneHtml(title, autoPrint) {
     '  });',
     '  document.getElementById("ss-fullscreen").addEventListener("click", function (e) {',
     '    e.stopPropagation();',
-    '    if (document.fullscreenElement) { document.exitFullscreen(); }',
-    '    else if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen().catch(function () {}); }',
+    TOGGLE_FULLSCREEN_JS,
     '  });',
     '',
     '  root.addEventListener("click", function () { next(); });',
     '',
     '  window.addEventListener("keydown", function (event) {',
-    '    if (event.ctrlKey || event.altKey || event.metaKey) return;',
+    `    ${SKIP_MODIFIER_KEY_JS}`,
     '    switch (event.key) {',
     '      case "ArrowRight": case "ArrowDown": case "PageDown": case "Enter": next(); break;',
     '      case "ArrowLeft": case "ArrowUp": case "PageUp": prev(); break;',
@@ -575,9 +567,5 @@ export function openPrintWindow(title) {
   const html = buildStandaloneHtml(title, true);
   if (!html) return false;
 
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-  const printWindow = window.open(url, '_blank');
-  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-
-  return Boolean(printWindow);
+  return openTextInNewWindow(html, 'text/html');
 }

@@ -413,6 +413,9 @@ markdownutil/
 │  ├─ samples.js          自作: 「使い方」タブから挿入する文書 / スライドサンプルのMarkdown
 │  ├─ clipboard.js        自作: クリップボードへのコピー（Clipboard API + 代替手段）
 │  ├─ markdown-engine.js  自作: markdown-itの初期化オプションをpreview.js/word-export.jsで共有
+│  ├─ dom.js              自作: 要素生成・タブの選択状態・修飾キー判定といった共通DOM処理
+│  ├─ download.js         自作: Blob URL経由のファイル保存・新規ウィンドウ表示
+│  ├─ inline-html.js      自作: 出力HTML向けのエスケープと、生成する<script>で共通のコード片
 │  └─ word-export.js      自作: markdown-itトークン → Word要素（docx）への変換、DOCX Blob生成
 ├─ vendor/
 │  ├─ anydoc/            外部: AnyDoc WASM本体（@firecrawl/anydoc-wasm, MIT）

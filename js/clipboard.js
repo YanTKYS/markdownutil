@@ -3,6 +3,9 @@
 // （HTTP配信の古いブラウザなど）では、一時的なtextareaとexecCommandへ自動的に切り替える。
 // 呼び出し側（app.jsのMarkdownコピー、help.jsの記法例コピー）は成否だけを見ればよい。
 
+/** コピーできなかった場合に表示する案内。表示方法（ステータス欄）は呼び出し側の責務。 */
+export const COPY_FAILED_MESSAGE = 'コピーに失敗しました。テキストを選択して手動でコピーしてください。';
+
 /** Clipboard APIが使えない場合の代替手段。一時的なtextareaを経由してコピーする。 */
 function copyViaTextarea(text) {
   const textarea = document.createElement('textarea');

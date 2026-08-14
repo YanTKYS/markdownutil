@@ -10,6 +10,8 @@
 // そのウィンドウを拡張ディスプレイへ移動し、ウィンドウ側の「全画面」を押す運用とする。
 
 import { getRenderedPayload, getSlideCount, getNoteForIndex, buildFrameDocument, createMessagePort } from './slide-preview.js';
+import { TOGGLE_FULLSCREEN_JS } from './inline-html.js';
+import { hasModifierKey } from './dom.js';
 
 const NO_NOTE_TEXT = 'スピーカーノートはありません';
 const NO_NEXT_TEXT = 'これが最後のスライドです';
@@ -33,11 +35,7 @@ document.getElementById('mu-fullscreen-btn').addEventListener('click', function 
   // ドキュメント全体のclickリスナー（クリックで次のスライドへ進む）へ伝播すると、
   // 全画面化と同時にスライドが進んでしまうため止める。
   event.stopPropagation();
-  if (document.fullscreenElement) {
-    document.exitFullscreen();
-  } else if (document.documentElement.requestFullscreen) {
-    document.documentElement.requestFullscreen().catch(function () {});
-  }
+${TOGGLE_FULLSCREEN_JS}
 });
 <\/script>`;
 
@@ -81,28 +79,35 @@ function updateView() {
   els.nextBtn.disabled = presentIndex >= total - 1;
 }
 
+/** 発表者ビューのiframeにスライド描画用の文書を読み込み、通信用ポートを作る。 */
+function initFrame(frame) {
+  frame.srcdoc = buildFrameDocument('parent');
+  return createMessagePort(() => frame.contentWindow);
+}
+
+/** 描画先（発表者ビューのiframe・投影用ウィンドウ）へ、指定スライドの単一表示を指示する。 */
+function showSlide(port, payload, index) {
+  port.send({ type: 'render', ...payload });
+  port.send({ type: 'single', single: true });
+  port.send({ type: 'goto', index });
+}
+
 function syncAll() {
   const payload = getRenderedPayload();
   if (!payload) return;
   const total = getSlideCount();
 
-  currentPort.send({ type: 'render', ...payload });
-  currentPort.send({ type: 'single', single: true });
-  currentPort.send({ type: 'goto', index: presentIndex });
+  showSlide(currentPort, payload, presentIndex);
 
   if (presentIndex + 1 < total) {
-    nextPort.send({ type: 'render', ...payload });
-    nextPort.send({ type: 'single', single: true });
+    showSlide(nextPort, payload, presentIndex + 1);
     nextPort.send({ type: 'empty', empty: false });
-    nextPort.send({ type: 'goto', index: presentIndex + 1 });
   } else {
     nextPort.send({ type: 'empty', empty: true, message: NO_NEXT_TEXT });
   }
 
   if (popupPort) {
-    popupPort.send({ type: 'render', ...payload });
-    popupPort.send({ type: 'single', single: true });
-    popupPort.send({ type: 'goto', index: presentIndex });
+    showSlide(popupPort, payload, presentIndex);
   }
 
   updateView();
@@ -145,7 +150,7 @@ function handleKey(key, shiftKey) {
 
 function handleWindowKeydown(event) {
   if (!presenting) return;
-  if (event.ctrlKey || event.altKey || event.metaKey) return;
+  if (hasModifierKey(event)) return;
   if (handleKey(event.key, event.shiftKey)) event.preventDefault();
 }
 
@@ -172,10 +177,8 @@ function closePopup() {
 export function init(elements) {
   els = elements;
 
-  els.currentFrame.srcdoc = buildFrameDocument('parent');
-  els.nextFrame.srcdoc = buildFrameDocument('parent');
-  currentPort = createMessagePort(() => els.currentFrame.contentWindow);
-  nextPort = createMessagePort(() => els.nextFrame.contentWindow);
+  currentPort = initFrame(els.currentFrame);
+  nextPort = initFrame(els.nextFrame);
 
   els.prevBtn.addEventListener('click', () => goto(presentIndex - 1));
   els.nextBtn.addEventListener('click', () => goto(presentIndex + 1));
