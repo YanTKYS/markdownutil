@@ -80,6 +80,41 @@ test('buildDocxBlob: 本文先頭の水平線はfront matterと誤認しない',
   assert.match(xml, /<w:bottom[^>]*w:val="single"/);
 });
 
+// front matterの書き方の揺れ（`---`の後ろの空白、ディレクティブの間の空行）で
+// 除去に失敗すると、`marp: true`等がWord文書の本文へそのまま印字されてしまう。
+for (const [name, markdown] of Object.entries({
+  '`---`の後ろに空白がある': '--- \nmarp: true\ntheme: gaia\n--- \n\n# 見出し\n',
+  'ディレクティブの間に空行がある': '---\nmarp: true\n\ntheme: gaia\n---\n\n# 見出し\n',
+  '改行コードがCRLF': '---\r\nmarp: true\r\ntheme: gaia\r\n---\r\n\r\n# 見出し\r\n',
+})) {
+  test(`buildDocxBlob: front matterを本文から除く（${name}）`, async () => {
+    const xml = await readDocumentXml(await buildDocxBlob(markdown));
+
+    assert.ok(!textOf(xml).includes('marp'), 'front matterが本文へ出力されている');
+    assert.ok(!textOf(xml).includes('theme'), 'front matterが本文へ出力されている');
+    assert.match(textOf(xml), /見出し/);
+  });
+}
+
+// 逆に、水平線で囲まれた本文をfront matterと誤認して消してしまわないこと。
+// 1行でも`key: value`の形でない行があれば本文として扱う。
+test('buildDocxBlob: 水平線で囲まれた本文はfront matterと誤認しない', async () => {
+  const markdown = '---\n注意: これは本文です\nもう一行の本文\n---\n\n# 見出し\n';
+  const xml = await readDocumentXml(await buildDocxBlob(markdown));
+
+  assert.match(textOf(xml), /これは本文です/, '本文がfront matterとして消えている');
+  assert.match(textOf(xml), /もう一行の本文/, '本文がfront matterとして消えている');
+});
+
+test('buildDocxBlob: front matterの直後にスライド区切りが続いても本文を残す', async () => {
+  const markdown = '---\nmarp: true\n---\n\n# 1枚目\n\n---\n\n# 2枚目\n';
+  const xml = await readDocumentXml(await buildDocxBlob(markdown));
+
+  assert.ok(!textOf(xml).includes('marp'), 'front matterが本文へ出力されている');
+  assert.match(textOf(xml), /1枚目/);
+  assert.match(textOf(xml), /2枚目/);
+});
+
 /* ---- 見出し・段落・文字書式 ---- */
 
 test('buildDocxBlob: 見出しレベルをWordの見出しスタイルへ対応させる', async () => {

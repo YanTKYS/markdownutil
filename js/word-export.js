@@ -90,19 +90,32 @@ function buildOrderedListLevels() {
   return levels;
 }
 
+// 先頭の `---` 〜 `---` で囲まれたブロック。`---`の後ろに空白が入っていても
+// front matterとして扱う（打ち間違いで入りやすく、Marp側は許容するため）。
+const FRONT_MATTER_PATTERN = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+
 /**
- * Marp向けのfront matter（先頭の `---` 〜 `---` で、中身がすべて `key: value` 行の
- * ブロックに限定）と、HTMLコメント（スピーカーノート・通常のMarkdownコメント）を
- * Word出力前のMarkdownから取り除く。本文がハイフン3つの水平線で始まるだけの文書を
- * 誤ってfront matter扱いしないよう、中身がkey: value行だけの場合のみ対象とする。
- * プレビュー用のMarkdown（editor.value）そのものは変更しない。
+ * ブロックの中身がMarpのディレクティブ（`key: value`）だけでできているか。
+ * 本文が水平線`---`で始まる文書の本文を、front matterと誤認して丸ごと消して
+ * しまわないための判定で、1行でも`key: value`の形でない行があれば偽とする。
+ * 見やすさのためにディレクティブの間へ空行を入れた場合も想定し、空行は読み飛ばす。
+ */
+function isDirectiveBlock(body) {
+  const lines = body.split(/\r?\n/).filter((line) => line.trim() !== '');
+  return lines.length > 0 && lines.every((line) => /^[^:]+:/.test(line));
+}
+
+/**
+ * Marp向けのfront matterと、HTMLコメント（スピーカーノート・通常のMarkdownコメント）を
+ * Word出力前のMarkdownから取り除く。プレビュー用のMarkdown（editor.value）そのものは
+ * 変更しない。
  */
 function stripFrontMatterAndComments(markdown) {
   let text = markdown;
 
-  const frontMatterMatch = text.match(/^---\r?\n((?:[^\r\n]*:[^\r\n]*\r?\n)+)---\r?\n?/);
-  if (frontMatterMatch) {
-    text = text.slice(frontMatterMatch[0].length);
+  const frontMatter = text.match(FRONT_MATTER_PATTERN);
+  if (frontMatter && isDirectiveBlock(frontMatter[1])) {
+    text = text.slice(frontMatter[0].length);
   }
 
   text = text.replace(/<!--[\s\S]*?-->/g, '');

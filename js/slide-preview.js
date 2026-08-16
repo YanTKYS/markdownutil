@@ -305,11 +305,9 @@ export function init(iframeEl) {
   mainFrame = iframeEl;
   mainFrame.srcdoc = buildFrameDocument('parent');
   if (mainPort) mainPort.destroy();
-  mainPort = createMessagePort(() => mainFrame.contentWindow, {
-    onReady: () => {
-      if (lastRendered) mainPort.send({ type: 'render', ...lastRendered });
-    },
-  });
+  // iframeの読み込みが終わる前にrender()が呼ばれても、createMessagePort()が
+  // 描画指示を待ち行列へ入れ、ready受信時にまとめて送る。ここで送り直す必要はない。
+  mainPort = createMessagePort(() => mainFrame.contentWindow);
 }
 
 /**
