@@ -14,6 +14,8 @@
   --color-focus: #0b5fff;
   --font-ui: "Yu Gothic UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Consolas, "Noto Sans Mono CJK JP", "MS Gothic", monospace;
+  --font-editor: "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+  --pane-header-height: 38px;
 }
 
 * {
@@ -147,7 +149,12 @@ a:focus-visible,
 
 .pane-header {
   flex: 0 0 auto;
+  min-height: var(--pane-header-height);
   padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   background: var(--color-bg-alt);
   border-bottom: 1px solid var(--color-border);
 }
@@ -172,9 +179,9 @@ a:focus-visible,
   border: 0;
   resize: none;
   padding: 12px 14px;
-  font-family: var(--font-mono);
-  font-size: 13.5px;
-  line-height: 1.6;
+  font-family: var(--font-editor);
+  font-size: 14px;
+  line-height: 1.7;
   color: var(--color-text);
   background: var(--color-bg);
   tab-size: 4;
@@ -201,13 +208,6 @@ a:focus-visible,
 
 .pane-preview {
   background: var(--color-bg);
-}
-
-.pane-header-preview {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 /* ---------- 文書/スライド 切替とスライド専用ツールバー ---------- */
@@ -244,11 +244,21 @@ a:focus-visible,
   outline-offset: 1px;
 }
 
+/* index.htmlでは.slide-toolbarを.pane-headerの外（独立した行）に置いている。
+   テーマ選択・HTML出力・印刷・プレゼン表示の全項目が並ぶため、2ペイン表示の
+   中間幅（860px超〜1200px弱）ではこの内容だけで折り返しが発生する。もし
+   .pane-header内に置いたままだと、折り返した分だけ右ペインヘッダの高さが
+   左ペインヘッダ（MARKDOWNのみ、常に1行）を超えてしまい、ヘッダの高さ・
+   本文開始位置がその幅域でだけずれる。独立した行にすることで、.pane-header
+   自体は常に1行・両ペイン共通の高さを保つ。 */
 .slide-toolbar {
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
   flex-wrap: wrap;
+  padding: 6px 12px;
+  background: var(--color-bg-alt);
+  border-bottom: 1px solid var(--color-border);
 }
 
 /* [hidden]は`display:none`を意味するUA既定スタイルだが、`.slide-toolbar`に`display:flex`を

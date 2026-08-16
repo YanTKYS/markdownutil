@@ -1713,3 +1713,129 @@ origin検証（#6・#7）はNode上のユニットテストで`createMessagePort
 - テーマ変更・キーボード操作・focus trap・背景クリック・多重クリック防止等、
   今回コードを変更していない機能については、v0.1.0〜v0.6.3で確認済みの内容を
   再確認していない（実装箇所そのものに変更が無いため）。
+
+## v0.6.6（左右ペイン整列・Markdown編集欄の可読性改善）
+
+実施日: 2026-08-16
+方法: `python3 -m http.server`で`markdownutil/`を配信し、`/opt/pw-browsers`の
+Chromium（headless、DevTools Protocol経由）を直接操作して確認した。
+Node.js組み込みの`WebSocket`/`fetch`のみでCDP（`Runtime.evaluate` /
+`Emulation.setDeviceMetricsOverride` / `Page.navigate`）を呼び出す小さな
+確認スクリプトを作成し、ボタンクリック・モード切替・画面幅変更・console記録の
+自動操作を行った（追加の依存パッケージは導入していない。確認後にスクリプトは削除）。
+
+### 変更内容
+
+- `css/app.css`の`.pane-header`を、左（`MARKDOWN`）・右（`プレビュー 文書 スライド`）
+  共通の1ルールへ統一（`display: flex; align-items: center;`、共通の
+  `min-height: var(--pane-header-height)`（38px）、`padding: 6px 12px`）。
+  右側だけに存在した`.pane-header-preview`（`display:flex`等）は、共通ルールへ
+  吸収したため削除した。
+- 上記により、ヘッダ直下の`.editor-wrap`・`.preview-body`の開始位置（Y座標）が
+  ヘッダ高さの統一を通じて自然に揃う（個別の`margin-top`/`padding-top`の追加調整は
+  行っていない）。
+- `.editor`（Markdown編集欄）の`font-family`を`var(--font-mono)`（等幅）から
+  新設した`var(--font-editor)`（`"BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic",
+  Meiryo, sans-serif`）へ変更。`font-size`を13.5px→14px、`line-height`を
+  1.6→1.7へ小さく調整した（`letter-spacing`・`padding`は変更なし）。
+  `--font-mono`自体は他箇所（プレビューのコード表示・ヘルプの記法例等）で
+  従来どおり使用しており、変更していない。
+- DOM（`index.html`）・JavaScript（`js/`配下）は変更していない。
+
+### ヘッダ整列の確認
+
+`getBoundingClientRect()`で実測。
+
+| 項目 | 左ペインヘッダ | 右ペインヘッダ |
+| --- | --- | --- |
+| top | 71.75px | 71.75px |
+| bottom | 109.75px | 109.75px |
+| height | 38px | 38px |
+
+`.editor-wrap`・`.preview-body`の`top`もいずれも109.75pxで一致し、
+本文開始位置が左右で揃っていることを確認した。860px未満（幅700pxで確認）の
+上下配置（`flex-direction: column`）でも、両ヘッダとも38pxで揃うことを確認した。
+
+### レビュー指摘: 中間幅×スライドモードでの折り返し確認と修正
+
+PRレビューで、「2ペイン表示を維持する中間幅（860px超〜1200px弱程度）で、
+スライドモードのスライド専用ツールバー（テーマ選択・HTML出力・印刷・
+プレゼン表示）まで含めた右ヘッダが`.pane-header`の`flex-wrap: wrap`で
+2行に折り返し、常に1行の左ヘッダ（MARKDOWNのみ）と高さがずれるのでは」
+という指摘を受け、実測で確認した。
+
+**指摘どおりの問題を確認**（修正前、幅1000pxでスライドモード）:
+
+| 項目 | 左ペインヘッダ | 右ペインヘッダ |
+| --- | --- | --- |
+| height | 38px | 75px |
+| `.editor-wrap`/`.preview-body`のtop | 109.75px | 146.75px |
+
+`.pane-preview .pane-header`のheightが幅1160px未満で75px（2行）に折り返し、
+幅860px（上下配置への切替直前）まで75pxのまま続くことを確認した
+（860pxちょうどで上下配置へ切り替わり38pxへ戻る）。
+
+**対応**: 「左右2ペインを維持できる最小幅を見直す」「スライド操作群の配置を
+見直す」の2案のうち、後者を採用した。`index.html`で`#slide-toolbar`を
+`.pane-header`の外（`.pane-preview`内、ヘッダの直後・`.preview-body`の直前）へ
+移動し、`css/app.css`の`.slide-toolbar`にヘッダに準じた独立行のスタイル
+（`padding: 6px 12px`、`background: var(--color-bg-alt)`、
+`border-bottom: 1px solid var(--color-border)`、`flex: 0 0 auto`）を追加した。
+`margin-left: auto`（ヘッダ行内で右寄せしていた指定）は不要になったため削除した。
+`#slide-toolbar`のid・子要素・JS参照（`js/app.js`の`getElementById('slide-toolbar')`）は
+変更していない。
+
+**修正後の確認**（幅861px・900px・1000px・1100px・1180px・1280pxをスライドモードで実測）:
+
+| 項目 | 結果 |
+| --- | --- |
+| `.pane-editor .pane-header`のheight | 全幅で38px |
+| `.pane-preview .pane-header`のheight | 全幅で38px（左と常に一致） |
+| 文書モード時の`.editor-wrap`/`.preview-body`のtop | 全幅で109.75px（一致） |
+
+スライドモードでは`.preview-body`のtopが`.editor-wrap`より
+`.slide-toolbar`の行の高さ分（実測で38px）だけ下がるが、これは左側に
+存在しないスライド専用操作の行が右側にのみ追加されるという仕様上の差であり、
+「プレビュー / 文書 / スライド」ヘッダ行自体の高さ・位置は左右で常に一致する。
+
+### 回帰確認
+
+| # | 内容 | 結果 |
+| --- | --- | --- |
+| 1 | 「? ヘルプ」の開閉 | OK |
+| 2 | 「使い方」タブから文書サンプルを挿入（自動でヘルプが閉じ、エディタへ反映） | OK |
+| 3 | 「使い方」タブからスライドサンプルを挿入（スライドモードへ自動切替） | OK |
+| 4 | 「文書」⇔「スライド」モード切替（`is-active`・`slide-frame`の表示切替） | OK |
+| 5 | 「Word出力」ボタンのクリック（例外なし） | OK |
+| 6 | スライドモードのツールバー4項目（テーマ選択・HTML出力・印刷・プレゼン表示）がいずれも存在し操作可能 | OK |
+| 7 | 幅1280px（通常表示）・幅861〜1180px（中間幅、スライドモード含む）・幅700px（上下配置）のいずれもレイアウト崩れなし | OK |
+| 8 | 上記1〜7の一連操作でconsoleのエラー・例外が0件 | OK |
+
+### `npm test`
+
+```
+npm test
+# tests 140
+# suites 0
+# pass 140
+# fail 0
+```
+
+### v0.6.6まとめ
+
+左右ペインヘッダの高さ差（右側が実測で約4px高かった。原因はテキストラベルと
+`<button>`要素とでブラウザ既定の`line-height`が異なること）を、共通の
+`.pane-header`ルール（flexboxによる`align-items: center`＋共通`min-height`）で
+解消した。ヘッダ直下の本文開始位置も、ヘッダ高さの統一に伴って自然に揃った。
+Markdown編集欄のフォントを日本語文書編集向けのゴシック体スタックへ変更し、
+font-size・line-heightを小さく調整した。
+
+PRレビューで、2ペイン表示を維持する中間幅（860px超〜1200px弱）でスライド
+モードのツールバー一式まで含めた右ヘッダが折り返し、左ヘッダとの高さが
+再びずれる可能性を指摘され、実測で確認したところ幅1000px時点で右ヘッダが
+75px（左は38pxのまま）になる問題を確認した。`#slide-toolbar`を`.pane-header`の
+外（独立した行）へ移すことで、ヘッダ行自体は2ペイン表示の全幅域（861px〜）で
+常に左右38px一致するよう修正した。DOM変更はこの`#slide-toolbar`の移動のみで、
+id・子要素・JS参照は変更していない。JavaScript・CSP・postMessage・保存形式・
+テスト基盤等は変更しておらず、`npm test`は140件全件成功、回帰確認でも新たな
+consoleエラーは発生していない。
