@@ -59,13 +59,22 @@ const helpMarpPanel = document.getElementById('help-panel-marp');
 const helpPresentationPanel = document.getElementById('help-panel-presentation');
 
 const INITIAL_STATUS = 'ファイルを開くか、Markdownをドラッグ&ドロップしてください。';
+// ファイル名が決まっていないとき（起動直後・クリア後・直接入力）の保存名。
+// HTML出力・Word出力のファイル名もこれを元に作る。
+const DEFAULT_SAVE_FILENAME = 'document.md';
 
 const state = {
   isConverting: false,
   isExportingWord: false,
-  saveFilename: 'document.md',
+  saveFilename: DEFAULT_SAVE_FILENAME,
   mode: 'doc', // 'doc' | 'slide'
 };
+
+// 直近のスライド描画で起きたエラー（Marp読み込み失敗・Markdownの解析エラー）。
+// 出力・印刷・プレゼン表示を止めるとき、「描画がまだ追いついていない」のか
+// 「描画自体が失敗している」のかで案内すべき内容が変わるため、区別できるよう保持する。
+// 描画が成功すればnullへ戻る。
+let slideError = null;
 
 function setStatus(message, tone = 'info') {
   statusBar.textContent = message;
@@ -96,7 +105,7 @@ function debounce(fn, waitMs) {
 }
 
 function deriveSaveFilename(sourceFilename) {
-  if (!sourceFilename) return 'document.md';
+  if (!sourceFilename) return DEFAULT_SAVE_FILENAME;
   const ext = getExtension(sourceFilename);
   if (ext === 'md' || ext === 'markdown') {
     // Markdownを直接開いた場合は元のファイル名をそのまま使う。
@@ -112,7 +121,7 @@ function deriveSaveFilename(sourceFilename) {
  * スライドのタイトルの元にする）。
  */
 function saveFilenameBase() {
-  return (state.saveFilename || 'document.md').replace(/\.(md|markdown)$/i, '');
+  return (state.saveFilename || DEFAULT_SAVE_FILENAME).replace(/\.(md|markdown)$/i, '');
 }
 
 /* ---------- プレビュー（文書 / スライド） ---------- */
@@ -149,17 +158,19 @@ async function refreshSlidePreview() {
   setSlideStatus('スライドを準備しています...', false);
 
   // render()は想定される失敗（Marpの読み込み失敗・解析エラー等）をerrorとして返すが、
-  // それ以外の例外で拒絵された場合に「スライドを準備しています...」のまま残して
-  // 未処理のPromise拒絵として消してしまわないよう、ここでも表示へ反映させる。
+  // それ以外の例外で拒否された場合に「スライドを準備しています...」のまま残して
+  // 未処理のPromise拒否として消してしまわないよう、ここでも表示へ反映させる。
   let result;
   try {
     result = await slidePreview.render(editor.value);
   } catch (error) {
     logError('refreshSlidePreview: スライドプレビューの描画に失敗', error);
-    setSlideStatus('スライドを表示できませんでした。', true);
+    slideError = 'スライドを表示できませんでした。';
+    setSlideStatus(slideError, true);
     return;
   }
 
+  slideError = result.error;
   setSlideStatus(result.error || (result.slideCount > 0 ? `${result.slideCount}枚` : ''), Boolean(result.error));
   syncThemeSelect();
 }
@@ -194,6 +205,21 @@ function switchMode(mode) {
 
 /* ---------- ファイル読み込み ---------- */
 
+/**
+ * エディタの内容を丸ごと入れ替える。ファイル読み込み・サンプル挿入・クリアの
+ * いずれもこの1か所を通し、「本文・保存名・表示モード・プレビュー」が
+ * ばらばらに更新されることがないようにする。
+ * @param {string} markdown 新しい本文
+ * @param {string} filename 保存時に使うファイル名
+ * @param {'doc'|'slide'} [mode] 表示モードも切り替える場合に指定する
+ */
+function replaceEditorContent(markdown, filename, mode) {
+  editor.value = markdown;
+  state.saveFilename = filename;
+  if (mode) applyModeUI(mode);
+  refreshActivePreview();
+}
+
 async function handleFile(file) {
   if (state.isConverting) return;
 
@@ -202,16 +228,12 @@ async function handleFile(file) {
     if (isTextFile(file.name)) {
       setStatus(`${file.name} を読み込んでいます...`, 'busy');
       const text = await file.text();
-      editor.value = text;
-      state.saveFilename = deriveSaveFilename(file.name);
-      refreshActivePreview();
+      replaceEditorContent(text, deriveSaveFilename(file.name));
       setStatus(`${file.name} を読み込みました`, 'success');
     } else {
       setStatus('変換中...', 'busy');
       const markdown = await convertToMarkdown(file);
-      editor.value = markdown;
-      state.saveFilename = deriveSaveFilename(file.name);
-      refreshActivePreview();
+      replaceEditorContent(markdown, deriveSaveFilename(file.name));
       setStatus(`${file.name} → Markdown変換完了`, 'success');
     }
   } catch (error) {
@@ -238,7 +260,7 @@ async function copyMarkdown() {
 }
 
 function saveMarkdown() {
-  const filename = state.saveFilename || 'document.md';
+  const filename = state.saveFilename || DEFAULT_SAVE_FILENAME;
   // 保存に失敗しても例外がボタンのclickハンドラへ抜けるだけだと、画面には何も出ず
   // 「保存できたのか分からない」状態になる。成功した場合だけ成功を名乗る。
   try {
@@ -287,22 +309,18 @@ function clearAll() {
   if (editor.value.trim() && !window.confirm('編集中のMarkdownを消去します。よろしいですか？')) {
     return;
   }
-  editor.value = '';
-  state.saveFilename = 'document.md';
-  applyModeUI('doc');
-  refreshActivePreview();
+  replaceEditorContent('', DEFAULT_SAVE_FILENAME, 'doc');
   setStatus(INITIAL_STATUS);
 }
 
 /* ---------- ヘルプのサンプル挿入 ---------- */
 
-// エディタへ直接値を書き込む点はhandleFile()と同じ経路（editor.value代入 →
-// applyModeUI/refreshActivePreview）を通す。debounce・文書プレビュー・スライド
-// プレビュー・isRenderCurrent()による整合性はすべてrefreshActivePreview()側で
-// 一括して面倒を見るため、ここで個別に描画処理を呼び直すことはしない。
+// 挿入はreplaceEditorContent()を通す。debounce・文書プレビュー・スライドプレビュー・
+// isRenderCurrent()による整合性はすべてrefreshActivePreview()側で一括して面倒を見るため、
+// ここで個別に描画処理を呼び直すことはしない。
 // キーはそのまま挿入後の表示モード（'doc' | 'slide'）としても使う。
 const SAMPLES = {
-  doc: { markdown: DOCUMENT_SAMPLE, filename: 'document.md', label: '文書サンプル' },
+  doc: { markdown: DOCUMENT_SAMPLE, filename: DEFAULT_SAVE_FILENAME, label: '文書サンプル' },
   slide: { markdown: SLIDE_SAMPLE, filename: 'slide.md', label: 'スライドサンプル' },
 };
 
@@ -321,10 +339,7 @@ function insertSample(mode) {
     return;
   }
 
-  editor.value = sample.markdown;
-  state.saveFilename = sample.filename;
-  applyModeUI(mode);
-  refreshActivePreview();
+  replaceEditorContent(sample.markdown, sample.filename, mode);
   help.close();
   setStatus(`${sample.label}を挿入しました`, 'success');
   editor.focus();
@@ -365,11 +380,18 @@ function setupDragAndDrop() {
 /* ---------- スライド専用操作 ---------- */
 
 /**
- * 出力・印刷・プレゼン表示の前提を満たしているか確認する。
- * 解析エラー中、および入力のdebounce待ちや再描画中のように「画面のスライドがまだ今の
- * Markdownを反映していない」間は、古い内容を出力してしまうため許可しない。
+ * 出力・印刷・プレゼン表示の前提を満たしているか確認し、満たさない場合は
+ * その理由をステータス欄へ表示してfalseを返す。
+ * 入力のdebounce待ちや再描画中のように「画面のスライドがまだ今のMarkdownを
+ * 反映していない」間は、古い内容を出力してしまうため許可しない。
  */
-function hasSlides() {
+function ensureSlidesReady() {
+  // 描画自体が失敗している場合、待っても解消しない。「少し待ってから」と案内すると
+  // 利用者が再試行を繰り返すことになるため、失敗の内容をそのまま伝える。
+  if (slideError) {
+    setStatus(slideError, 'error');
+    return false;
+  }
   if (!slidePreview.isRenderCurrent(editor.value)) {
     setStatus('現在のMarkdownがまだスライドへ反映されていません。少し待ってから再度お試しください。', 'error');
     return false;
@@ -405,7 +427,7 @@ function setupSlideControls() {
   });
 
   slideExportBtn.addEventListener('click', () => {
-    if (!hasSlides()) return;
+    if (!ensureSlidesReady()) return;
     const title = saveFilenameBase();
 
     // 組み立てに失敗した場合（null）をそのまま保存すると、中身が"null"とだけ書かれた
@@ -427,14 +449,14 @@ function setupSlideControls() {
   });
 
   slidePrintBtn.addEventListener('click', () => {
-    if (!hasSlides()) return;
+    if (!ensureSlidesReady()) return;
     if (!slidePreview.openPrintWindow(saveFilenameBase())) {
       setStatus('印刷用ウィンドウを開けませんでした。ポップアップの許可を確認してください。', 'error');
     }
   });
 
   slidePresentBtn.addEventListener('click', () => {
-    if (!hasSlides()) return;
+    if (!ensureSlidesReady()) return;
     if (!presenter.start()) {
       setStatus('プレゼン用ウィンドウを開けませんでした。ポップアップの許可を確認してください。', 'error');
     }
@@ -483,6 +505,10 @@ function init() {
     onInsertDocumentSample: () => insertSample('doc'),
     onInsertSlideSample: () => insertSample('slide'),
   });
+
+  // 初期表示もapplyModeUI()から作る。index.html側の初期状態（hidden属性・is-active）と
+  // state.modeを別々に書くと、片方だけ直したときに食い違うため、常にここを正本とする。
+  applyModeUI(state.mode);
   refreshActivePreview();
 
   // 初回変換を速くするため、バックグラウンドでWASM初期化を始めておく。
