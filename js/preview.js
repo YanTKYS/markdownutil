@@ -2,7 +2,7 @@
 // Markdown -> HTML のプレビュー描画のみを担当する。
 // (ライブラリ名との混同を避けるため、自作ファイル名は markdown.js ではなく preview.js とする)
 
-import { createMarkdownIt } from './markdown-engine.js';
+import { createMarkdownIt, stripFrontMatterAndComments } from './markdown-engine.js';
 import { createElement } from './dom.js';
 
 // パーサーの初期化はmarkdown-engine.jsに集約し、Word出力（word-export.js）と
@@ -10,10 +10,18 @@ import { createElement } from './dom.js';
 const md = createMarkdownIt();
 
 export function renderMarkdown(source) {
-  if (!source || !source.trim()) {
+  if (!source) {
     return '';
   }
-  return md.render(source);
+  // Marpのfront matterとHTMLコメント（スピーカーノート）は本文ではないため、
+  // Word出力と同じ前処理で取り除いてから描画する。取り除かないと、front matterは
+  // 直後の`---`と合わさって見出しとして表示され、コメントは`<!-- ... -->`という
+  // 文字列のままプレビューへ出てしまう（markdown-itは`html: false`のため）。
+  const body = stripFrontMatterAndComments(source);
+  if (!body.trim()) {
+    return '';
+  }
+  return md.render(body);
 }
 
 /** targetEl の中身をMarkdownのレンダリング結果で置き換える。 */

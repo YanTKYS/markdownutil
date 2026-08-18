@@ -210,6 +210,20 @@ test('buildDocxBlob: 離れた番号付きリストはそれぞれ1から数え�
   assert.equal((numbering.match(/<w:abstractNum\b/g) || []).length >= 2, true);
 });
 
+test('buildDocxBlob: 途中の番号から始まる番号付きリストはその番号から数える（プレビューと一致させる）', async () => {
+  // 「1. 2.」→説明の段落→「3. 4.」のように番号を続けて書いた手順書で、
+  // プレビュー（<ol start="3">）は3から、Word出力は1から数え始めてずれていた。
+  const markdown = '1. 手順1\n2. 手順2\n\n説明の段落。\n\n3. 手順3\n4. 手順4\n';
+  const blob = await buildDocxBlob(markdown);
+  const numbering = await readNumberingXml(blob);
+
+  const decimalStarts = (numbering.match(/<w:abstractNum\b[\s\S]*?<\/w:abstractNum>/g) || [])
+    .filter((block) => block.includes('<w:numFmt w:val="decimal"'))
+    .map((block) => (block.match(/<w:start w:val="(\d+)"\/>/) || [])[1]);
+
+  assert.deepEqual(decimalStarts, ['1', '3'], '2つ目のリストが3から始まっていない');
+});
+
 test('buildDocxBlob: 入れ子の番号付きリストは同じnumbering参照を使う', async () => {
   const markdown = '1. 親\n   1. 子\n';
   const xml = await readDocumentXml(await buildDocxBlob(markdown));
@@ -242,6 +256,18 @@ test('buildDocxBlob: 表はヘッダー行を太字・背景色付きで出力�
   assert.equal((xml.match(/<w:tr>/g) || []).length, 2);
   assert.match(xml, /w:fill="E7E7E7"/, 'ヘッダー行の背景色が付いていない');
   assert.match(textOf(xml), /機能内容文書表示/);
+});
+
+test('buildDocxBlob: 表の桁揃え（`---:`）を段落の配置として引き継ぐ', async () => {
+  const markdown = '| 区分 | 件数 | 備考 |\n| :--- | ---: | :---: |\n| 相談 | 120 | 済 |\n';
+  const xml = await readDocumentXml(await buildDocxBlob(markdown));
+  const cells = (xml.match(/<w:tc>[\s\S]*?<\/w:tc>/g) || [])
+    .map((cell) => [textOf(cell), (cell.match(/<w:jc w:val="(\w+)"\/>/) || [])[1]]);
+
+  assert.deepEqual(cells, [
+    ['区分', 'left'], ['件数', 'right'], ['備考', 'center'],
+    ['相談', 'left'], ['120', 'right'], ['済', 'center'],
+  ]);
 });
 
 test('buildDocxBlob: 表の列幅は本文幅を列数で等分する（v0.6.2の修正）', async () => {

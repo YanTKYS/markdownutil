@@ -5,13 +5,15 @@
 // 一切含まない。
 //
 // 対応: 見出し(H1-H6)、段落、太字、斜体、インラインコード、箇条書き、番号付きリスト
-// （最大3階層のネスト）、表、コードブロック、水平線、引用（インデント表現）。
+// （最大3階層のネスト・途中の番号からの開始）、表（`---:`の桁揃えを含む）、
+// コードブロック、水平線、引用（インデント表現）。
 // 非対応: 画像の埋め込み（代わりに代替テキストをプレースホルダとして出力する）、
 // リンクのハイパーリンク化（リンク文字はプレーンテキストとして出力する）。
 // Marp向けのfront matter（marp/theme/paginate等のYAML風ブロック）とHTMLコメント
-// （スピーカーノート等）はWord本文から除外する。
+// （スピーカーノート等）はWord本文から除外する（除去自体はmarkdown-engine.jsが担い、
+// 文書プレビューと同じ本文になるようにしている）。
 
-import { createMarkdownIt } from './markdown-engine.js';
+import { createMarkdownIt, stripFrontMatterAndComments } from './markdown-engine.js';
 import { logError } from './errors.js';
 import {
   Document,
@@ -75,14 +77,21 @@ function listIndentLeft(level) {
   return LIST_INDENT_TWIPS * (level + 1);
 }
 
-/** 番号付きリスト1つ分（最大3階層）のレベル定義。リストごとに新しいオブジェクトを作る。 */
-function buildOrderedListLevels() {
+/**
+ * 番号付きリスト1つ分（最大3階層）のレベル定義。リストごとに新しいオブジェクトを作る。
+ * `3.`のように途中の番号から書き始めたリストは、そのリストが現れた階層だけを
+ * その番号から数え始める（入れ子の下位階層は通常どおり1から）。
+ * @param {number} startLevel このリストが現れた階層（0始まり）
+ * @param {number} start 最初の項目の番号
+ */
+function buildOrderedListLevels(startLevel, start) {
   const levels = [];
   for (let level = 0; level <= MAX_LIST_LEVEL; level += 1) {
     levels.push({
       level,
       format: LevelFormat.DECIMAL,
       text: `%${level + 1}.`,
+      start: level === startLevel ? start : 1,
       alignment: AlignmentType.START,
       style: { paragraph: { indent: { left: listIndentLeft(level), hanging: 360 } } },
     });
@@ -90,37 +99,17 @@ function buildOrderedListLevels() {
   return levels;
 }
 
-// 先頭の `---` 〜 `---` で囲まれたブロック。`---`の後ろに空白が入っていても
-// front matterとして扱う（打ち間違いで入りやすく、Marp側は許容するため）。
-const FRONT_MATTER_PATTERN = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+// markdown-itは表の`| ---: |`（桁揃え）を`text-align`のstyleとしてセルへ持たせる。
+// プレビュー（HTML）と同じ見え方になるよう、Word側の段落配置へ移し替える。
+const CELL_ALIGNMENTS = {
+  left: AlignmentType.LEFT,
+  center: AlignmentType.CENTER,
+  right: AlignmentType.RIGHT,
+};
 
-/**
- * ブロックの中身がMarpのディレクティブ（`key: value`）だけでできているか。
- * 本文が水平線`---`で始まる文書の本文を、front matterと誤認して丸ごと消して
- * しまわないための判定で、1行でも`key: value`の形でない行があれば偽とする。
- * 見やすさのためにディレクティブの間へ空行を入れた場合も想定し、空行は読み飛ばす。
- */
-function isDirectiveBlock(body) {
-  const lines = body.split(/\r?\n/).filter((line) => line.trim() !== '');
-  return lines.length > 0 && lines.every((line) => /^[^:]+:/.test(line));
-}
-
-/**
- * Marp向けのfront matterと、HTMLコメント（スピーカーノート・通常のMarkdownコメント）を
- * Word出力前のMarkdownから取り除く。プレビュー用のMarkdown（editor.value）そのものは
- * 変更しない。
- */
-function stripFrontMatterAndComments(markdown) {
-  let text = markdown;
-
-  const frontMatter = text.match(FRONT_MATTER_PATTERN);
-  if (frontMatter && isDirectiveBlock(frontMatter[1])) {
-    text = text.slice(frontMatter[0].length);
-  }
-
-  text = text.replace(/<!--[\s\S]*?-->/g, '');
-
-  return text;
+function cellAlignment(style) {
+  const matched = /text-align:\s*(left|center|right)/.exec(style || '');
+  return matched ? CELL_ALIGNMENTS[matched[1]] : null;
 }
 
 function makeRun(text, state) {
@@ -288,7 +277,10 @@ function buildTableRow(tokens, startIndex) {
     if (isHeaderCell || tokens[i].type === 'td_open') {
       const inlineToken = tokens[i + 1];
       const runs = buildRunsFromInlineTokens(inlineToken.children, isHeaderCell ? { bold: 1 } : {});
-      const cellOptions = { children: [new Paragraph({ children: runs })] };
+      const paragraphOptions = { children: runs };
+      const alignment = cellAlignment(tokens[i].attrGet('style'));
+      if (alignment) paragraphOptions.alignment = alignment;
+      const cellOptions = { children: [new Paragraph(paragraphOptions)] };
       if (isHeaderCell) {
         cellOptions.shading = { type: ShadingType.CLEAR, fill: TABLE_HEADER_SHADING_FILL };
       }
@@ -311,8 +303,9 @@ function buildTableRow(tokens, startIndex) {
 function tokensToDocxChildren(tokens) {
   const children = [];
   const listStack = [];
+  // 番号付きリストごとの { level, start }。numbering参照名の連番（1始まり）と対応する。
+  const orderedLists = [];
   let quoteDepth = 0;
-  let orderedListCount = 0;
   let i = 0;
 
   while (i < tokens.length) {
@@ -339,12 +332,19 @@ function tokensToDocxChildren(tokens) {
         // 番号付きリストは、直近の祖先が同じ番号付きリストの入れ子でない限り新しい
         // numbering参照を割り当てる。同一参照を使い回すと、離れた場所にある別々の
         // 番号付きリストが1つの連番として続いてしまう（例: 1つ目が1〜3、2つ目が
-        // 4から始まる）ため、文書内に複数ある場合はそれぞれ1から数え直させる。
+        // 4から始まる）ため、文書内に複数ある場合はそれぞれ数え直させる。
         const parentOrdered = [...listStack].reverse().find((entry) => entry.type === 'ordered');
-        const reference = parentOrdered
-          ? parentOrdered.reference
-          : `${ORDERED_LIST_REFERENCE}-${++orderedListCount}`;
-        listStack.push({ type: 'ordered', level: Math.min(listStack.length, MAX_LIST_LEVEL), reference });
+        const level = Math.min(listStack.length, MAX_LIST_LEVEL);
+        let reference;
+        if (parentOrdered) {
+          reference = parentOrdered.reference;
+        } else {
+          // `3.`のように途中の番号から書き始めたリストは、その番号から数え始める
+          // （プレビューの`<ol start="3">`と同じ見え方にそろえる）。
+          orderedLists.push({ level, start: Number(token.attrGet('start')) || 1 });
+          reference = `${ORDERED_LIST_REFERENCE}-${orderedLists.length}`;
+        }
+        listStack.push({ type: 'ordered', level, reference });
         i += 1;
         break;
       }
@@ -384,7 +384,7 @@ function tokensToDocxChildren(tokens) {
     }
   }
 
-  return { children, orderedListCount };
+  return { children, orderedLists };
 }
 
 /**
@@ -399,11 +399,11 @@ export async function buildDocxBlob(markdown) {
   }
 
   let children;
-  let orderedListCount;
+  let orderedLists;
   try {
     const cleaned = stripFrontMatterAndComments(markdown);
     const tokens = md.parse(cleaned, {});
-    ({ children, orderedListCount } = tokensToDocxChildren(tokens));
+    ({ children, orderedLists } = tokensToDocxChildren(tokens));
   } catch (cause) {
     logError('buildDocxBlob: Markdownの解析・Word要素への変換に失敗', cause);
     throw new WordExportError('Markdownを解析できませんでした。', { cause });
@@ -424,15 +424,13 @@ export async function buildDocxBlob(markdown) {
       },
       sections: [{ children }],
     };
-    if (orderedListCount > 0) {
-      const config = [];
-      for (let n = 1; n <= orderedListCount; n += 1) {
-        config.push({
-          reference: `${ORDERED_LIST_REFERENCE}-${n}`,
-          levels: buildOrderedListLevels(),
-        });
-      }
-      documentOptions.numbering = { config };
+    if (orderedLists.length > 0) {
+      documentOptions.numbering = {
+        config: orderedLists.map((list, index) => ({
+          reference: `${ORDERED_LIST_REFERENCE}-${index + 1}`,
+          levels: buildOrderedListLevels(list.level, list.start),
+        })),
+      };
     }
 
     const doc = new Document(documentOptions);

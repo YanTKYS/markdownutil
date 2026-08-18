@@ -14,10 +14,13 @@
 import { logError } from './errors.js';
 import { escapeHtml, jsonForInlineScript, TOGGLE_FULLSCREEN_JS, SKIP_MODIFIER_KEY_JS } from './inline-html.js';
 import { openTextInNewWindow } from './download.js';
+// front matterの書式判定は、プレビュー・Word出力（markdown-engine.js）と共用する。
+// テーマの読み書きとfront matterの除去で判定が食い違うと、画面に見えている本文と
+// テーマ選択欄の内容がずれるため、正規表現は1か所だけに置く。
+import { FRONT_MATTER_PATTERN } from './markdown-engine.js';
 
 export const THEMES = ['default', 'gaia', 'uncover'];
 
-const FRONT_MATTER_PATTERN = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(\r?\n|$)/;
 // gaiaテーマ等がWebフォントを@importで外部から読み込むのを取り除く。
 // (テーマのフォールバックフォントで表示され、Markdownの互換性には影響しない)
 const REMOTE_IMPORT_PATTERN = /@import\s+(?:url\(\s*)?["']?(?:https?:)?\/\/[^;]*;/gi;
