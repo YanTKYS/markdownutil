@@ -152,6 +152,10 @@ function buildRunsFromInlineTokens(children, baseState = {}) {
         runs.push(makeRun(token.content, { ...state, code: true }));
         break;
       case 'softbreak':
+        // Markdown上の通常改行は文書プレビューでは空白として折り畳まれる。
+        // Wordだけ強制改行にすると同じ本文の見え方が変わるため、空白でつなぐ。
+        runs.push(makeRun(' ', state));
+        break;
       case 'hardbreak':
         runs.push(new TextRun({ text: '', break: 1 }));
         break;
