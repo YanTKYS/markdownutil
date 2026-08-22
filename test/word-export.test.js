@@ -137,6 +137,17 @@ test('buildDocxBlob: 太字・斜体・インラインコードを1段落内で�
   assert.equal(textOf(paragraph), '通常 太字 斜体 code');
 });
 
+test('buildDocxBlob: 通常改行は空白、Markdownの明示的な改行だけをWordの改行にする', async () => {
+  const softbreakXml = await readDocumentXml(await buildDocxBlob('1行目\n2行目\n'));
+  const hardbreakXml = await readDocumentXml(await buildDocxBlob('1行目  \n2行目\n'));
+  const softbreakParagraph = splitParagraphs(softbreakXml).find((entry) => textOf(entry).includes('1行目'));
+  const hardbreakParagraph = splitParagraphs(hardbreakXml).find((entry) => textOf(entry).includes('1行目'));
+
+  assert.equal(textOf(softbreakParagraph), '1行目 2行目');
+  assert.ok(!softbreakParagraph.includes('<w:br/>'), '通常改行が強制改行になっている');
+  assert.match(hardbreakParagraph, /<w:br\/>/, '末尾の空白2つによる明示的な改行が反映されていない');
+});
+
 test('buildDocxBlob: リンクは書式を付けずテキストとして出力する', async () => {
   const xml = await readDocumentXml(await buildDocxBlob('[リンク文字](https://example.com/)\n'));
 
