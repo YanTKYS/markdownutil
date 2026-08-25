@@ -140,10 +140,10 @@ test('ファイルの読み込みに失敗した場合はreadFailedのConversion
   assert.equal(error.cause.message, 'disk error');
 });
 
-/* ---- AnyDoc v0.2.xで追加・変更された変換（数式・$のエスケープ・チェックボックス） ---- */
+/* ---- 数式・$のエスケープ・チェックボックスの変換 ---- */
 //
 // いずれも大きなバイナリfixtureを置かずに済むよう、最小限のOOXML/ODFをその場で
-// 組み立てて変換する。実際の業務文書での確認はdocs/TESTING.mdの実ブラウザ検証で行う。
+// 組み立てて変換する。実際の業務文書での確認はdocs/TESTING.mdの実ブラウザ確認で行う。
 
 /** 本文XMLだけを差し替えた最小限のdocxを組み立てる。 */
 function buildMinimalDocx(bodyXml) {

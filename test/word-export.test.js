@@ -2,8 +2,6 @@
 // word-export.jsのMarkdown -> DOCX変換を検証する。生成物はZIP（OOXML）なので、
 // test/helpers/docx-zip.jsで`word/document.xml`を取り出し、段落・書式・リスト・表が
 // 意図した要素になっているかを確認する。
-// v0.6.1/v0.6.2で修正した「表の列幅」「リスト項目に続く段落」「番号付きリストの連番」も
-// 回帰テストとして含める。
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -210,7 +208,7 @@ test('buildDocxBlob: 番号付きリストはnumberingを定義して参照す�
   assert.match(numbering, /<w:numFmt w:val="decimal"/);
 });
 
-test('buildDocxBlob: 離れた番号付きリストはそれぞれ1から数え直す（v0.6.0の連番対策）', async () => {
+test('buildDocxBlob: 離れた番号付きリストはそれぞれ1から数え直す', async () => {
   const markdown = '1. 一\n2. 二\n\n段落\n\n1. 再開一\n2. 再開二\n';
   const blob = await buildDocxBlob(markdown);
   const numbering = await readNumberingXml(blob);
@@ -244,7 +242,7 @@ test('buildDocxBlob: 入れ子の番号付きリストは同じnumbering参照�
   assert.match(xml, /<w:ilvl w:val="1"\/>/);
 });
 
-test('buildDocxBlob: リスト項目に続く段落は記号を付けず本文位置へ字下げする（v0.6.2の修正）', async () => {
+test('buildDocxBlob: リスト項目に続く段落は記号を付けず本文位置へ字下げする', async () => {
   const markdown = '- 項目\n\n  項目の補足\n';
   const xml = await readDocumentXml(await buildDocxBlob(markdown));
   const paragraphs = splitParagraphs(xml);
@@ -281,7 +279,7 @@ test('buildDocxBlob: 表の桁揃え（`---:`）を段落の配置として引�
   ]);
 });
 
-test('buildDocxBlob: 表の列幅は本文幅を列数で等分する（v0.6.2の修正）', async () => {
+test('buildDocxBlob: 表の列幅は本文幅を列数で等分する', async () => {
   const markdown = '| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n';
   const xml = await readDocumentXml(await buildDocxBlob(markdown));
   const gridColumns = xml.match(/<w:gridCol w:w="(\d+)"/g) || [];

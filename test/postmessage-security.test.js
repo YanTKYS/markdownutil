@@ -1,9 +1,8 @@
 // postmessage-security.test.js
-// v0.6.4で取り込んだPR#21のセキュリティ強化（postMessageの送信元window・オリジン検証）を
-// createMessagePort()に対して検証する。iframe/別ウィンドウ経由の描画指示（render等）を
-// 他オリジンのページに偽装されないこと、送信時も自分のオリジンを指定していることを確認する。
-// PR#19（v0.6.3）のエラー処理（1つの送信先へのpostMessage失敗が他の送信先への同期まで
-// 止めないこと）が、このorigin検証を追加した後も維持されていることも合わせて確認する。
+// createMessagePort()のpostMessage検証（送信元window・オリジンの照合）を確認する。
+// iframe/別ウィンドウ経由の描画指示（render等）を他オリジンのページに偽装されないこと、
+// 送信時も自分のオリジンを指定していること、1つの送信先へのpostMessage失敗が
+// 他の送信先への同期まで止めないことを検証する。
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -123,7 +122,7 @@ test('createMessagePort: originが不明（file://相当）な場合は送信先
   });
 });
 
-test('createMessagePort: origin検証を追加しても、1つの送信先へのpostMessage失敗は他の送信先の同期を止めない（v0.6.3のエラー処理を維持）', () => {
+test('createMessagePort: 1つの送信先へのpostMessage失敗は他の送信先の同期を止めない', () => {
   withFakeWindow({ origin: 'http://127.0.0.1:8801' }, ({ emit }) => {
     const originalConsoleError = console.error;
     const logs = [];

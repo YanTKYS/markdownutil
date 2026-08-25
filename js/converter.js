@@ -1,7 +1,7 @@
 // converter.js
 // 文書 -> Markdown 変換を担当する。AnyDoc WASMの初期化・呼び出し・エラー正規化のみを行い、
-// UI操作（DOM更新やボタン制御など）はここに持ち込まない。将来Web Workerへ切り出せる
-// 境界を意識し、外部との入出力は「File/Blobを受け取りMarkdown文字列を返す」形に限定する。
+// UI操作（DOM更新やボタン制御など）はここに持ち込まない。外部との入出力は
+// 「File/Blobを受け取りMarkdown文字列を返す」形に限定する。
 
 import init, { formatFromPath, toMarkdownBytes } from '../vendor/anydoc/anydoc_wasm.js';
 import { logError } from './errors.js';

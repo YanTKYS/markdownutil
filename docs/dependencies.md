@@ -96,28 +96,14 @@ npmパッケージの`dist/index.mjs`をエントリポイントとして`esbuil
 - 配置先: `vendor/docx/`
 - バージョン確認: `vendor/docx/package.json`の`version`
 
-## 今回（v0.7.1）更新していないライブラリについて
-
-v0.7.1は同梱ライブラリの管理方法の整理が目的で、AnyDoc以外のバージョン更新は
-対象外としています。markdown-it・Marp Core・docxについて、実装時点でのnpm公式最新版と
-同梱バージョンが同じかどうかは`docs/TESTING.md`のv0.7.1記録を参照してください。
-新しいバージョンが存在する場合も、本PRへは無条件に混ぜず、更新が必要であれば
-以降の別PRで扱います。
-
 ## テストの実行
 
-`js/`配下のユニットテストと、上記のバージョン整合性テストは、Node.js組み込みの
-テストランナー（`node --test`）だけで実行できます。追加の依存パッケージは不要です
-（閉域環境でも`npm install`なしに実行できます）。配布物自体には影響しません。
+`vendor/`を更新したら、バージョン整合性テストを含むユニットテストを実行してください。
 
 ```bash
-npm test              # ユニットテストの実行（Node.js 20以上）
-npm run test:coverage # カバレッジ付きで実行（Node.js 22以上）
+npm test
 ```
 
-- ブラウザ専用のAPI（DOM・`window.open`・クリップボード）は`test/helpers/fake-dom.js`の
-  最小限の代用で置き換えています。
-- Marp Core・docx・AnyDoc WASMは差し替えずに`vendor/`の本物を読み込みます。DOCXの中身は
-  `test/helpers/docx-zip.js`（`node:zlib`のみ使用）で展開して検証します。
-- `js/app.js`・`js/help.js`は画面全体の組み立て（UI配線）が中心のため、ユニットテストでは
-  なく手動テスト（`docs/TESTING.md`）で確認しています。
+`test/vendor-manifest.test.js`が、`vendor/manifest.json`と各vendor配下・README.md・
+`LICENSES/THIRD_PARTY_NOTICES.md`の不一致を検出します。実ブラウザでの確認項目は
+[`docs/TESTING.md`](TESTING.md)を参照してください。

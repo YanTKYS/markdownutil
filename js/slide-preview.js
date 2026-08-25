@@ -597,6 +597,6 @@ export function openPrintWindow(title) {
   if (!html) return false;
 
   // Blob URL生成 → window.open → 成功時は遅延revoke、失敗/例外時は即revoke + 原因記録は
-  // download.jsのopenTextInNewWindow()に委ねる（挙動は従来のopenPrintWindow()と同一）。
+  // download.jsのopenTextInNewWindow()に委ねる。
   return openTextInNewWindow(html, 'text/html');
 }

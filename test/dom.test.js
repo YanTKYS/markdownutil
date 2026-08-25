@@ -1,7 +1,5 @@
 // dom.test.js
-// dom.js（v0.6.4でapp.js/help.js/preview.js/presenter.jsの重複を切り出した共通DOM処理）を
-// 検証する。切り出し前にapp.js/help.jsへ直書きされていたのと同じ処理であり、
-// 挙動が変わっていないことの確認が目的。
+// dom.js（app.js/help.js/preview.js/presenter.jsで共用する機能非依存のDOM処理）を検証する。
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
