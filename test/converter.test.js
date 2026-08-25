@@ -5,6 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, statSync } from 'node:fs';
 
 import {
   ConversionError,
@@ -81,4 +82,34 @@ test('ConversionError: codeを省略した場合はunknownになる', () => {
 
   assert.equal(error.code, 'unknown');
   assert.equal(error.cause, undefined);
+});
+
+/* ---- 同梱しているAnyDoc WASMの素性 ---- */
+//
+// JS glue / WASM本体 / TypeScript定義は同一リリース由来の一式として取り込む決まりのため、
+// 「WASMだけ新しくpackage.jsonは古いまま」といった部分更新を検知できるようにしておく。
+
+test('vendor/anydoc: 同梱しているAnyDocのバージョンと配布ファイルが揃っている', () => {
+  const dir = new URL('../vendor/anydoc/', import.meta.url);
+  const manifest = JSON.parse(readFileSync(new URL('package.json', dir), 'utf8'));
+
+  assert.equal(manifest.name, '@firecrawl/anydoc-wasm');
+  assert.equal(manifest.version, '0.2.3');
+  assert.equal(manifest.license, 'MIT');
+
+  for (const name of ['anydoc_wasm.js', 'anydoc_wasm_bg.wasm', 'anydoc_wasm.d.ts', 'LICENSE', 'UPSTREAM_README.md']) {
+    assert.ok(statSync(new URL(name, dir)).size > 0, `${name} が無いか空`);
+  }
+});
+
+test('vendor/anydoc: converter.jsが使うAPIをTypeScript定義が公開している', () => {
+  const types = readFileSync(new URL('../vendor/anydoc/anydoc_wasm.d.ts', import.meta.url), 'utf8');
+
+  assert.match(types, /export default function __wbg_init/);
+  assert.match(types, /export function formatFromPath\(/);
+  assert.match(types, /export function toMarkdownBytes\(/);
+  // converter.jsのmessageForError()が分岐しているエラーコード。
+  for (const code of ['encrypted', 'unsupported', 'malformed', 'resourceLimit', 'missingPart']) {
+    assert.match(types, new RegExp(`'${code}'`), `ConvertErrorCodeに${code}が無い`);
+  }
 });

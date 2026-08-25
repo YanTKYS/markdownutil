@@ -8,7 +8,7 @@ MarkdownUtilが同梱している外部ライブラリの一覧です。いず�
 | 項目 | 内容 |
 | --- | --- |
 | ライブラリ名 | `@firecrawl/anydoc-wasm`（[anydoc](https://github.com/firecrawl/anydoc) のWebAssembly版） |
-| バージョン | 0.1.8 |
+| バージョン | 0.2.3 |
 | ライセンス | MIT License（Copyright (c) 2026 Sideguide Technologies Inc.） |
 | 入手元 | npm レジストリ: https://www.npmjs.com/package/@firecrawl/anydoc-wasm （ソース: https://github.com/firecrawl/anydoc） |
 | 利用目的 | Word / Excel / PowerPoint / PDF / CSV / RTF / OpenDocument / EPUB 等の文書をブラウザ内でMarkdownへ変換するため |
