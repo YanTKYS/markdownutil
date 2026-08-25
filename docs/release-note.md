@@ -6,6 +6,23 @@
 - README.mdは現在の機能・利用方法を記載し、原則としてリリース履歴を追加しない。
 - 詳細な検証記録はdocs/TESTING.mdへ記載する。
 
+## v0.7.1
+
+- README.mdを、MarkdownUtilの概要・主な機能・基本的な使い方・対応形式・同梱ライブラリ・
+  配置と閉域利用の要点・詳細ドキュメントへのリンクだけを載せる、短い入口として再構成
+- 「既知の制限」章を廃止。利用開始前に知っておくべき制約（HTTP配信が必須、IISの`.wasm`
+  MIME設定、外部通信なし等）は各章へ、形式・スライド・Word出力ごとの詳細仕様は
+  `docs/formats.md` / `docs/slides.md` / `docs/word-export.md` / `docs/deployment.md`へ分離
+- `vendor/manifest.json`を新設し、同梱している4つの外部ライブラリ（AnyDoc WASM /
+  markdown-it / Marp Core / docx）のバージョンの正本とした
+- `vendor/manifest.json`とREADME.mdのライブラリ一覧表・`LICENSES/THIRD_PARTY_NOTICES.md`・
+  各vendor配下のバージョン整合性を検証するテストを追加
+- 依存ライブラリの更新手順（ライブラリ別の注意点を含む）を`docs/dependencies.md`へ文書化
+- `LICENSES/THIRD_PARTY_NOTICES.md`から、見出しに混ざっていたMarkdownUtil側のリリース履歴
+  （「（v0.2.0で追加）」等）を削除し、現在状態のみを記載する文書に整理
+- 機能コード（AnyDoc変換・プレビュー・Marp描画・Word出力・プレゼン・保存・コピー・CSP・
+  postMessage・UI/CSS）の変更は行っていない
+
 ## v0.7.0
 
 - 同梱する `@firecrawl/anydoc-wasm` を0.1.8から0.2.3へ更新（npm公式配布物をそのまま
