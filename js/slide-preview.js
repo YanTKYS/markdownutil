@@ -469,7 +469,6 @@ export function buildStandaloneHtml(title, autoPrint) {
     '  font-size: 14px; line-height: 1.6; white-space: pre-wrap; z-index: 19; display: none;',
     '}',
     '.ss-notes.is-visible { display: block; }',
-    'body.ss-hide-ui .ss-bar { opacity: 0; pointer-events: none; }',
     '@media print {',
     '  .no-print, .ss-bar, .ss-notes { display: none !important; }',
     '  html, body { overflow: visible; }',

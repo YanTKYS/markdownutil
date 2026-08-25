@@ -396,7 +396,10 @@ function ensureSlidesReady() {
     setStatus('現在のMarkdownがまだスライドへ反映されていません。少し待ってから再度お試しください。', 'error');
     return false;
   }
-  if (slidePreview.getSlideCount() === 0) {
+  // Marpは本文が空でも「白紙1枚」として描画するため、枚数だけでは中身の有無を判断できない。
+  // 中身がないまま進むと、白紙だけのHTMLファイルが「保存しました」として出てきたり、
+  // 白紙のまま編集画面が発表者ビューへ切り替わってしまうため、本文自体も確認する。
+  if (!editor.value.trim() || slidePreview.getSlideCount() === 0) {
     setStatus('表示できるスライドがありません。Markdownを入力してください。', 'error');
     return false;
   }
