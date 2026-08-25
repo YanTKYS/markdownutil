@@ -27,7 +27,7 @@ MarkdownUtilが同梱している外部ライブラリの一覧です。いず�
 | 配置場所 | `vendor/markdown-it/`（ブラウザ向けビルド済みESM: `markdown-it.esm.min.mjs`） |
 | ライセンス全文 | `vendor/markdown-it/LICENSE`、`LICENSES/markdown-it-LICENSE.txt` |
 
-## @marp-team/marp-core（v0.2.0で追加）
+## @marp-team/marp-core
 
 | 項目 | 内容 |
 | --- | --- |
@@ -54,7 +54,7 @@ MarkdownUtilが同梱している外部ライブラリの一覧です。いず�
 | `postcss-selector-parser` | MIT | `LICENSES/marp-core-dependencies/postcss-selector-parser-LICENSE.txt` |
 | `xss` | MIT | `LICENSES/marp-core-dependencies/xss-LICENSE.txt` |
 
-## docx（v0.6.0で追加）
+## docx
 
 | 項目 | 内容 |
 | --- | --- |
@@ -85,7 +85,7 @@ MarkdownUtilのスライドプレビュー機能は、[`slide`リポジトリ](h
 `postMessage`によるプレビュー分離、リモートWebフォント`@import`の除去、HTML出力・印刷・
 プレゼン表示の組み立て方）を参考に、MarkdownUtil向けへ再構成して実装した。iSlideのHTML/CSSや
 エディタ・ファイル入出力・localStorage自動保存・splitter等はそのまま移植しておらず、
-MarkdownUtil自身のUI・データフロー（v0.1.0のAnyDoc変換・編集・保存等）に合わせて
+MarkdownUtil自身のUI・データフロー（AnyDoc変換・編集・保存等）に合わせて
 `js/slide-preview.js`として書き直している。
 
 ## それ以外の依存

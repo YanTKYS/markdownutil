@@ -89,13 +89,14 @@ test('ConversionError: codeを省略した場合はunknownになる', () => {
 // JS glue / WASM本体 / TypeScript定義は同一リリース由来の一式として取り込む決まりのため、
 // 「WASMだけ新しくpackage.jsonは古いまま」といった部分更新を検知できるようにしておく。
 
-test('vendor/anydoc: 同梱しているAnyDocのバージョンと配布ファイルが揃っている', () => {
+test('vendor/anydoc: 同梱しているAnyDocの配布ファイルが揃っている', () => {
   const dir = new URL('../vendor/anydoc/', import.meta.url);
-  const manifest = JSON.parse(readFileSync(new URL('package.json', dir), 'utf8'));
+  const pkg = JSON.parse(readFileSync(new URL('package.json', dir), 'utf8'));
+  // バージョンの正本はvendor/manifest.json（test/vendor-manifest.test.jsで整合性を検証）。
+  // ここではpackage.json自体の内容（名前・ライセンス・配布ファイルの有無）だけを確認する。
 
-  assert.equal(manifest.name, '@firecrawl/anydoc-wasm');
-  assert.equal(manifest.version, '0.2.3');
-  assert.equal(manifest.license, 'MIT');
+  assert.equal(pkg.name, '@firecrawl/anydoc-wasm');
+  assert.equal(pkg.license, 'MIT');
 
   for (const name of ['anydoc_wasm.js', 'anydoc_wasm_bg.wasm', 'anydoc_wasm.d.ts', 'LICENSE', 'UPSTREAM_README.md']) {
     assert.ok(statSync(new URL(name, dir)).size > 0, `${name} が無いか空`);

@@ -2439,3 +2439,134 @@ IIS側の設定変更は不要のため、READMEの配置手順には変更を�
 表計算の表示形式といった0.2.xの改善によるものだった。閉域条件（外部通信0件・CDN不使用・
 ローカルWASM）とIISの配置手順は従来どおりで、変更は不要である。
 
+
+## v0.7.1（README再構成・vendorバージョン管理統一）
+
+実施日: 2026-08-25
+方法: README.mdの再構成とdocs分離、`vendor/manifest.json`の新設は、対象がドキュメント・
+テストコードのみで機能コードへの変更が無いため、`npm test`によるリンク・バージョン整合性の
+検証と、実ブラウザでのsmoke確認（起動・サンプル・Word出力・ヘルプ）で確認した。
+
+### 1. README.mdの再構成
+
+再構成前後で、見出し構成・分量を比較した。
+
+| | 再構成前 | 再構成後 |
+| --- | --- | --- |
+| 見出し数 | 34（既知の制限・ディレクトリ構成・スライド詳細・Word出力詳細・IIS配置詳細等を含む） | 7（概要 / 主な機能 / 基本的な使い方 / 対応形式 / 同梱ライブラリ / 配置・閉域利用 / 詳細ドキュメント） |
+| 行数 | 611行 | 89行 |
+| バイト数 | 43,477 bytes | 5,774 bytes（約87%減） |
+
+「既知の制限」章（55項目、約90行）を独立章として廃止した。以下の観点で内容を仕分けした。
+
+| 分類 | 対応 |
+| --- | --- |
+| 利用開始前に知らないと操作できない制約（HTTP配信必須、IISの`.wasm` MIME設定、外部通信なし等） | README「配置・閉域利用」章、および`docs/deployment.md`へ現在仕様として記載 |
+| 形式・スライド・Word出力ごとの個別制限（下線非保持、Excel 365チェックボックスのTRUE/FALSE、旧形式の数式非対応等） | `docs/formats.md` / `docs/slides.md` / `docs/word-export.md`へ、「できません一覧」ではなく変換仕様・変換方針として記載 |
+| 一般的な方針として1文に集約できるもの（元文書のレイアウト・装飾を完全再現しないこと） | README「対応形式」章の冒頭へ、個別列挙せず一般化して記載 |
+
+再構成後のREADMEに「できません」の個別列挙が残っていないこと、リンク切れが無いことを
+スクリプトで確認した（下記4節）。
+
+### 2. docsの新設・整理
+
+以下を新設した。
+
+| ファイル | 内容 | 行数 |
+| --- | --- | --- |
+| `docs/formats.md` | AnyDoc経由の対応形式、数式・チェックボックス・PDF・Spreadsheetの変換仕様、Markdownで表現しきれない書式の方針 | 99行 |
+| `docs/slides.md` | Marp Coreによるスライドプレビュー、テーマ、スピーカーノート、HTML出力、印刷、プレゼン表示、外部通信について、編集支援ヘルプ | 213行 |
+| `docs/word-export.md` | Markdown → Word出力の対応/非対応要素、AnyDoc変換との責務分離 | 47行 |
+| `docs/deployment.md` | IIS配置・`.wasm`/`.mjs`のMIME設定・閉域環境・CSP | 93行 |
+| `docs/dependencies.md` | 依存ライブラリの管理対象・正本・更新手順・ライブラリ別の注意点 | 123行 |
+
+既存の`docs/release-note.md`・`docs/TESTING.md`は構成・役割を変更していない
+（重複作成はしていない）。
+
+新設したdocsの内容は、README.mdから移した既存の記載をベースにしており、
+「v0.7.1でREADMEを整理しました」等のリリース履歴的な記述は加えていない
+（README.md自体にも同様の記述を加えていない）。
+
+### 3. vendor/manifest.jsonの新設
+
+`vendor/manifest.json`を新設し、以下4ライブラリの現在の同梱バージョンを一元管理する
+正本とした。
+
+| id | ライブラリ | バージョン | 用途 |
+| --- | --- | --- | --- |
+| `anydoc` | AnyDoc WASM（`@firecrawl/anydoc-wasm`） | 0.2.3 | 文書 → Markdown変換 |
+| `markdown-it` | markdown-it | 15.0.0 | Markdownプレビュー |
+| `marp` | Marp Core（`@marp-team/marp-core`） | 4.4.0 | スライド表示 |
+| `docx` | docx | 9.7.1 | Word出力 |
+
+各ライブラリについて、npmの公式レジストリで最新版を確認した結果、4件とも
+実装時点で**同梱バージョンが最新版と一致**していた。
+
+| パッケージ | 同梱バージョン | npm公式最新版 |
+| --- | --- | --- |
+| `@firecrawl/anydoc-wasm` | 0.2.3 | 0.2.3 |
+| `markdown-it` | 15.0.0 | 15.0.0 |
+| `@marp-team/marp-core` | 4.4.0 | 4.4.0 |
+| `docx` | 9.7.1 | 9.7.1 |
+
+更新が必要なライブラリは無かったため、`docs/dependencies.md`へ「今回は最新版だった」旨の
+履歴は記載していない（同ドキュメントの運用方針どおり、更新が発生したときにのみ記録する）。
+
+### 4. バージョン整合性テスト（`test/vendor-manifest.test.js`）
+
+`vendor/manifest.json`を正本として、以下の不一致を検出するテストを追加した。
+
+| # | 検証内容 |
+| --- | --- |
+| 1 | manifestに4ライブラリ（`anydoc` / `markdown-it` / `marp` / `docx`）が揃っている。各`version`が空でなく、`path`のディレクトリが存在する |
+| 2 | `anydoc` / `markdown-it` / `docx`は、`vendor/<lib>/package.json`の`name`・`version`がmanifestの`npmPackage`・`version`と一致する |
+| 3 | `marp`はpackage.jsonを持たないため、`vendor/marp/marp-core.bundle.mjs`先頭のバージョンコメント（`/* @marp-team/marp-core (vX.Y.Z, MIT) ... */`）がmanifestの`version`と一致する |
+| 4 | `LICENSES/THIRD_PARTY_NOTICES.md`の各ライブラリの見出し配下にある「バージョン」欄が、manifestの`version`と一致する |
+| 5 | `README.md`の「同梱ライブラリ」表の各行のバージョンが、manifestの`version`と一致する |
+
+検知能力を確認するため、`vendor/manifest.json`のmarkdown-itのバージョンを一時的に
+`14.0.0`へ書き換えてテストを実行したところ、上記2・4・5（package.json比較・
+THIRD_PARTY_NOTICES比較・README比較）の3件が想定どおり失敗することを確認した
+（確認後は元のバージョンへ戻し、7件全件成功を再確認済み）。
+
+### 5. リンク・記法チェック
+
+README.mdおよび新設・既存の全docsファイル（`docs/formats.md` / `docs/slides.md` /
+`docs/word-export.md` / `docs/deployment.md` / `docs/dependencies.md` /
+`docs/TESTING.md` / `docs/release-note.md` / `LICENSES/THIRD_PARTY_NOTICES.md`）から
+Markdownリンクを抽出し、相対パスの参照先ファイルがすべて存在することをスクリプトで
+確認した。誤検知（`[alt](src)`等、記法の説明として書いた文字列がリンクとして抽出された
+もの）を除き、実際に壊れているリンクは無かった。
+
+### 6. 実施したテスト
+
+`npm test`: **170件全件成功**（v0.7.0の163件 + 今回追加7件）。
+
+追加した7件は上記4節のバージョン整合性テストで、いずれもテキストファイル同士の比較のみ
+（バイナリfixtureは追加していない）。
+
+### 7. ブラウザsmoke確認
+
+機能コードは変更していないため、回帰確認ではなくsmoke確認として、実ブラウザ
+（Chromium、`http-server`で静的配信）で最小限の操作を確認した。
+
+| # | 内容 | 結果 |
+| --- | --- | --- |
+| 1 | 起動 | OK（797ms） |
+| 2 | 文書サンプルの挿入 | OK（「文書サンプルを挿入しました」、Markdown841字） |
+| 3 | Word出力 | OK（`document.docx`を保存、「document.docx を保存しました」） |
+| 4 | スライドサンプルの挿入・スライドモード表示 | OK（「スライドサンプルを挿入しました」、Markdown735字、5枚描画） |
+| 5 | ヘルプ表示 | OK（1,362字） |
+| 6 | 外部ホストへの通信 | 0件 |
+| 7 | consoleエラー | 1件のみ（`/favicon.ico`の404。faviconを配置していないための既存の挙動で、今回の変更とは無関係） |
+| 8 | pageエラー | 0件 |
+
+### v0.7.1まとめ
+
+README.mdを「MarkdownUtilとは何か・何ができるか・どう使い始めるか」だけを短時間で
+把握できる入口として再構成した（611行・43,477 bytes → 89行・5,774 bytes）。
+「既知の制限」という独立章は廃止し、利用開始に必要な制約は各章へ、形式・スライド・
+Word出力ごとの詳細仕様は新設した5つのdocsファイルへ分離した。あわせて`vendor/manifest.json`を
+同梱ライブラリのバージョンの正本として新設し、README・THIRD_PARTY_NOTICES・各vendor配下との
+不一致を検知するテストを追加した。機能コードの変更は無く、`npm test`（170件）とブラウザ
+smoke確認の両方で既存動作に問題が無いことを確認している。

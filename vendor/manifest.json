@@ -1,0 +1,41 @@
+{
+  "$comment": "MarkdownUtilが現在同梱している外部ライブラリとバージョンの正本。更新時はこのファイルを起点に、各vendor/配下・README.md・LICENSES/THIRD_PARTY_NOTICES.mdを揃えること（docs/dependencies.md参照）。",
+  "libraries": [
+    {
+      "id": "anydoc",
+      "displayName": "AnyDoc WASM",
+      "npmPackage": "@firecrawl/anydoc-wasm",
+      "version": "0.2.3",
+      "path": "vendor/anydoc",
+      "license": "MIT",
+      "purpose": "文書 → Markdown変換"
+    },
+    {
+      "id": "markdown-it",
+      "displayName": "markdown-it",
+      "npmPackage": "markdown-it",
+      "version": "15.0.0",
+      "path": "vendor/markdown-it",
+      "license": "MIT",
+      "purpose": "Markdownプレビュー"
+    },
+    {
+      "id": "marp",
+      "displayName": "Marp Core",
+      "npmPackage": "@marp-team/marp-core",
+      "version": "4.4.0",
+      "path": "vendor/marp",
+      "license": "MIT",
+      "purpose": "スライド表示"
+    },
+    {
+      "id": "docx",
+      "displayName": "docx",
+      "npmPackage": "docx",
+      "version": "9.7.1",
+      "path": "vendor/docx",
+      "license": "MIT",
+      "purpose": "Word出力"
+    }
+  ]
+}
