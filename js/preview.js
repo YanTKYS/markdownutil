@@ -1,12 +1,11 @@
 // preview.js
 // Markdown -> HTML のプレビュー描画のみを担当する。
-// (ライブラリ名との混同を避けるため、自作ファイル名は markdown.js ではなく preview.js とする)
 
 import { createMarkdownIt, stripFrontMatterAndComments } from './markdown-engine.js';
 import { createElement } from './dom.js';
 
 // パーサーの初期化はmarkdown-engine.jsに集約し、Word出力（word-export.js）と
-// 同じ設定（html/linkify/breaks）を共有する。ここでのオプション値自体は変更していない。
+// 同じ設定（html/linkify/breaks）を共有する。
 const md = createMarkdownIt();
 
 export function renderMarkdown(source) {

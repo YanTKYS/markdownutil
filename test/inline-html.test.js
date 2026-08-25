@@ -1,7 +1,6 @@
 // inline-html.test.js
-// inline-html.js（v0.6.4でslide-preview.js/presenter.jsの重複を切り出した、生成HTML/JS向けの
-// エスケープと埋め込み用の共通部品）を検証する。切り出し前にslide-preview.js内に
-// 直書きされていたのと同じ処理であり、挙動が変わっていないことの確認が目的。
+// inline-html.js（生成HTML/JS向けのエスケープと埋め込み用の共通部品）を検証する。
+// 埋め込んだ本文がタグや<script>を抜け出さないことが確認の目的。
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

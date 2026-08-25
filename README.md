@@ -62,19 +62,18 @@ AnyDoc WASM経由でMarkdownへ変換します。`.md` / `.markdown` / `.txt` �
 
 ## 配置・閉域利用
 
-- IIS等の静的Webサーバの公開フォルダへ配置するだけで利用できます。サーバ側での文書変換
-  処理は行わないため、追加のランタイムのインストールは不要です。
-- `file://`で`index.html`を直接開くと、ESモジュールがブラウザのCORS制約で読み込めません。
-  HTTP配信が必須です（開発時のローカル確認も簡易HTTPサーバ経由で行ってください）。
-- `.wasm`（AnyDoc本体）と`.mjs`（markdown-it・Marp Coreのビルド済みESモジュール）を静的
-  ファイルとして配信します。IISでは`.wasm → application/wasm`のMIME設定を確認してください
-  （未登録でも動作はしますが初期化がわずかに遅くなります。`.mjs`が未登録の場合は404になり
-  画面が動作しません）。
-- 外部API・CDNへの通信は行いません。文書の変換・Markdownのレンダリングはすべてブラウザ内で
-  完結し、インターネット接続を必要とせず、選択した文書をサーバへアップロードすることも
-  ありません。
+IIS等の静的Webサーバの公開フォルダへ配置するだけで利用できます。サーバ側での文書変換処理は
+行わないため、追加のランタイムのインストールは不要です。外部API・CDNへの通信は行わず、
+文書の変換・Markdownのレンダリングはすべてブラウザ内で完結します。
 
-IIS配置時の詳しいMIME設定手順、閉域環境での確認項目、CSPの設定内容は
+配置時は次の2点にご注意ください。
+
+- **HTTP配信が必須です。** `file://`で`index.html`を直接開くと、ESモジュールがブラウザの
+  CORS制約で読み込めません（開発時のローカル確認も簡易HTTPサーバ経由で行ってください）。
+- **IISでは`.wasm`・`.mjs`のMIME設定を確認してください。** `.mjs`が未登録の場合は404となり、
+  画面が動作しません。
+
+詳しいMIME設定手順、閉域環境での確認項目、CSPの設定内容は
 [`docs/deployment.md`](docs/deployment.md)を参照してください。
 
 ## 詳細ドキュメント
@@ -84,6 +83,6 @@ IIS配置時の詳しいMIME設定手順、閉域環境での確認項目、CSP�
 - [Markdown → Word出力](docs/word-export.md)
 - [配置・閉域利用](docs/deployment.md)
 - [依存ライブラリの管理](docs/dependencies.md)
-- [テスト記録](docs/TESTING.md)
+- [テスト](docs/TESTING.md)
 - [リリースノート](docs/release-note.md)
 - [Third-party notices](LICENSES/THIRD_PARTY_NOTICES.md)

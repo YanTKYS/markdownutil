@@ -145,7 +145,7 @@ test('start: ポップアップがブロックされた場合はfalseを返す',
   }
 });
 
-test('start: document.write()が失敗した場合はfalseを返し、空のウィンドウを残さない（v0.6.3のエラー処理）', async () => {
+test('start: document.write()が失敗した場合はfalseを返し、空のウィンドウを残さない', async () => {
   const context = await setupPresenter();
   try {
     context.win.setOpenResult(createFakePopup({ writeThrows: true }));

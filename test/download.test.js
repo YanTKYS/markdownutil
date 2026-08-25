@@ -1,9 +1,7 @@
 // download.test.js
-// download.js（v0.6.4でapp.js/slide-preview.jsの重複を切り出した、Blob URL経由の
-// ファイル保存・別ウィンドウ表示の共通処理）を検証する。切り出し前にapp.js/slide-preview.jsへ
-// 直書きされていた処理と同じ挙動（Blob URLの生成・解放、失敗時の即時revoke + 原因記録）を
-// 維持していることの確認が目的。openTextInNewWindow()はv0.6.3のopenPrintWindow()が持っていた
-// エラー処理（成功時は遅延revoke、失敗/例外時は即時revoke + logError()）をそのまま引き継ぐ。
+// download.js（Blob URL経由のファイル保存・別ウィンドウ表示の共通処理）を検証する。
+// Blob URLの生成・解放（成功時は遅延revoke、失敗/例外時は即時revoke + 原因記録）が
+// どの経路でも守られ、URLがリークしないことが確認の目的。
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

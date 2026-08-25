@@ -9,8 +9,8 @@
   - 'unsafe-inline': スライド表示用ドキュメント（slide-preview.js）とMarpが生成する
     インラインの<script>/<style>に必要。
   - 'wasm-unsafe-eval': AnyDocのWASM実行に必要（eval/new Functionは許可しない）。
-  - img-src: 外部URL画像は既存仕様（README「外部通信について」参照）として引き続き許可する。
-    Markdownに外部URLの画像を書いた場合、その取得はこのCSPでは制限されない。
+  - img-src: Markdownに書いた外部URLの画像は許可する（取得はこのCSPでは制限されない。
+    docs/slides.md「外部通信について」参照）。
 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; font-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>MarkdownUtil</title>

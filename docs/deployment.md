@@ -73,8 +73,7 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
   文書やMarkdown本文を保存しません。ページを閉じると内容は消えます（明示的に
   「Markdownを保存」した場合のみファイルとして残ります）。
 
-上記は開発者ツールのNetworkタブで外部ホストへの通信が発生しないことを確認済みです
-（[`docs/TESTING.md`](TESTING.md) 参照）。
+配置後の確認方法は[`docs/TESTING.md`](TESTING.md)を参照してください。
 
 ## CSP（Content-Security-Policy）とpostMessageの制限
 
@@ -82,12 +81,12 @@ MarkdownUtilはビルド済みの静的ファイル一式です。`markdownutil/
 送信を明示的に禁止しています（`default-src 'self'`を基本に、AnyDoc WASM実行に必要な
 `wasm-unsafe-eval`、スライド表示用ドキュメント・Marpが生成するインライン`<script>`/`<style>`に
 必要な`unsafe-inline`のみ個別に許可）。Markdown内に書いた外部URL画像（`img-src`）は
-従来どおり表示できます（[`docs/slides.md`](slides.md)「外部通信について」参照）。
+表示できます（[`docs/slides.md`](slides.md)「外部通信について」参照）。
 
 あわせて、スライドプレビュー用iframe・プレゼン専用ウィンドウとの`postMessage`によるやり取りは、
 送信元のwindowと送信元オリジンの両方を照合し、一致しないメッセージは受け付けません。
 `window.open()`は他オリジンのページからも参照でき、描画（`render`）メッセージを偽装されると
 MarkdownUtilのオリジンで任意のHTML/スクリプトを実行されるおそれがあるための対策です。
 送信時も、可能な場合は本体自身のオリジンを送信先に指定します（`file://`等でオリジンが
-定まらない場合のみ、従来どおり`'*'`を使います）。1つの送信先へのpostMessageが失敗しても、
+定まらない場合のみ`'*'`を使います）。1つの送信先へのpostMessageが失敗しても、
 他の送信先（発表者ビューの現在/次スライドや投影用ウィンドウ）への同期は止まりません。
