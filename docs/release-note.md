@@ -6,6 +6,29 @@
 - README.mdは現在の機能・利用方法を記載し、原則としてリリース履歴を追加しない。
 - 詳細な検証記録はdocs/TESTING.mdへ記載する。
 
+## v0.7.0
+
+- 同梱する `@firecrawl/anydoc-wasm` を0.1.8から0.2.3へ更新（npm公式配布物をそのまま
+  `vendor/anydoc/` へ取り込み。JS glue・WASM本体・TypeScript定義・LICENSE・READMEは
+  すべて同一リリース由来）
+- `js/converter.js` は変更なし。`init()` / `formatFromPath()` / `toMarkdownBytes()` の
+  呼び出し方・戻り値・`error.code`（`encrypted` / `unsupported` / `malformed` /
+  `resourceLimit` / `missingPart`）はいずれも0.1.8と互換で、既存の日本語エラーメッセージも
+  そのまま成立することを確認
+- DOC / DOCX / XLS / XLSX / PPT / PPTX / PDF / CSV / RTF / ODT / ODS / ODP / EPUB / XLSB の
+  変換回帰を確認（ファイルを開く→変換→左ペイン表示→文書プレビューまで）
+- AnyDoc 0.2.xで改善された変換内容を確認
+  - `.docx` / `.pptx` / OpenDocument（`.odt` `.ods` `.odp`）/ `.rtf` / `.epub` の数式が
+    LaTeX記法でMarkdownへ出力される（旧形式の`.doc` `.ppt`はupstreamの実装対象外）
+  - 表計算のフォームコントロールのチェックボックスが `[x]` / `[ ]` として出力される
+    （`.xlsx` と `.ods` で確認。upstreamでは `.xls` `.xlsb` `.xlsm` も対象）
+  - 表計算のセル表示形式（通貨・パーセント・桁区切り）が変換結果へ反映される
+  - `.xlsb` が変換できるようになった（0.1.8では`malformed`となっていた）
+  - 通常文章中の `$` は、数式と誤読され得る箇所だけがエスケープされる
+- 閉域環境でのローカルWASM実行方式は変更なし（外部通信0件、CDN不使用、`.wasm`のMIME設定も
+  従来どおり`application/wasm`のみ）
+- 検証の詳細は `docs/TESTING.md` を参照
+
 ## v0.6.9
 
 バグ修正:
