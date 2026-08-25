@@ -80,41 +80,61 @@ function updateView() {
   els.nextBtn.disabled = presentIndex >= total - 1;
 }
 
-/** 発表者ビューのiframeにスライド描画用の文書を読み込み、通信用ポートを作る。 */
+/**
+ * 発表者ビューのiframeにスライド描画用の文書を読み込み、通信用ポートを作る。
+ *
+ * 発表者ビューのiframeを一度クリックするとフォーカスがiframe側へ移り、以降のキー操作は
+ * 本体のwindowではなくiframe内で発生する。転送されたキー操作を引き取らないと、
+ * 手元のスライドをクリックしただけでキーボードのページ送りが効かなくなり、
+ * 発表中に理由の分からないまま操作不能になる。投影用ウィンドウと同じようにキー操作を
+ * 引き取る（クリックでのページ送りは、手元での誤クリックで進めてしまわないよう引き取らない）。
+ */
 function initFrame(frame) {
   frame.srcdoc = buildFrameDocument('parent');
-  return createMessagePort(() => frame.contentWindow);
+  return createMessagePort(() => frame.contentWindow, {
+    onMessage: (message) => {
+      if (presenting && message.type === 'keydown') handleKey(message.key, message.shiftKey);
+    },
+  });
 }
 
-/** 描画先（発表者ビューのiframe・投影用ウィンドウ）へ、指定スライドの単一表示を指示する。 */
-function showSlide(port, payload, index) {
-  port.send({ type: 'render', ...payload });
-  port.send({ type: 'single', single: true });
-  port.send({ type: 'goto', index });
+/**
+ * 描画先（発表者ビューの2つのiframeと投影用ウィンドウ）へ、レンダリング結果を流し込み
+ * 単一表示に切り替える。発表の開始時に1度だけ行う。
+ * ページ送りのたびに送り直すと、描画先ごとにスライド全体を組み立て直すことになり、
+ * 枚数の多い資料ではページ送りが目に見えて遅くなる・ちらつくため、位置指定（goto）と分けている。
+ */
+function loadSlides(payload) {
+  [currentPort, nextPort, popupPort].forEach((port) => {
+    if (!port) return;
+    port.send({ type: 'render', ...payload });
+    port.send({ type: 'single', single: true });
+  });
 }
 
+/** 現在位置を各描画先と発表者ビューへ反映する（内容はloadSlides()で読み込み済み）。 */
 function syncAll() {
-  const payload = getRenderedPayload();
-  if (!payload) return;
   const total = getSlideCount();
 
-  showSlide(currentPort, payload, presentIndex);
+  currentPort.send({ type: 'goto', index: presentIndex });
 
   if (presentIndex + 1 < total) {
-    showSlide(nextPort, payload, presentIndex + 1);
+    nextPort.send({ type: 'goto', index: presentIndex + 1 });
     nextPort.send({ type: 'empty', empty: false });
   } else {
     nextPort.send({ type: 'empty', empty: true, message: NO_NEXT_TEXT });
   }
 
   if (popupPort) {
-    showSlide(popupPort, payload, presentIndex);
+    popupPort.send({ type: 'goto', index: presentIndex });
   }
 
   updateView();
 }
 
 function goto(index) {
+  // 発表中以外は描画先にスライドが読み込まれていない（loadSlides()は開始時に行う）。
+  if (!presenting) return;
   const total = getSlideCount();
   if (total === 0) return;
   const next = Math.min(Math.max(index, 0), total - 1);
@@ -201,7 +221,8 @@ export function init(elements) {
  */
 export function start() {
   if (presenting) return true;
-  if (!getRenderedPayload() || getSlideCount() === 0) return false;
+  const payload = getRenderedPayload();
+  if (!payload || getSlideCount() === 0) return false;
 
   try {
     popupWindow = window.open(
@@ -241,6 +262,7 @@ export function start() {
   presentIndex = 0;
   startPopupWatch();
   document.body.classList.add('is-presenting');
+  loadSlides(payload);
   syncAll();
 
   return true;

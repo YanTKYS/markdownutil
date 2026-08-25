@@ -411,3 +411,91 @@ test('本体画面を離れるときは投影用ウィンドウも閉じる', as
     context.cleanup();
   }
 });
+
+test('ページ送り: 内容は送り直さず位置指定だけを送る（枚数の多い資料でのページ送りを軽くする）', async () => {
+  const context = await setupPresenter();
+  try {
+    start();
+    context.markReady();
+
+    const renderCount = (target) => target.posted.filter((message) => message.type === 'render').length;
+    const current = context.els.currentFrame.contentWindow;
+    const next = context.els.nextFrame.contentWindow;
+    const popup = context.popup();
+
+    // 開始時に1回だけ流し込む。
+    assert.equal(renderCount(current), 1);
+    assert.equal(renderCount(next), 1);
+    assert.equal(renderCount(popup), 1);
+
+    context.els.nextBtn.dispatch('click');
+    context.els.nextBtn.dispatch('click');
+    context.els.prevBtn.dispatch('click');
+
+    assert.equal(context.els.positionEl.textContent, '2 / 3');
+    assert.equal(renderCount(current), 1, 'ページ送りのたびに全スライドを送り直している');
+    assert.equal(renderCount(next), 1, 'ページ送りのたびに全スライドを送り直している');
+    assert.equal(renderCount(popup), 1, 'ページ送りのたびに全スライドを送り直している');
+
+    // 位置指定はページ送りのたびに届いている。
+    assert.deepEqual(context.gotoMessages(current).map((message) => message.index), [0, 1, 2, 1]);
+  } finally {
+    context.cleanup();
+  }
+});
+
+test('発表者ビューのiframeへフォーカスが移った後もキー操作でページ送りできる', async () => {
+  const context = await setupPresenter();
+  try {
+    start();
+    context.markReady();
+
+    // 手元のスライドを一度クリックするとフォーカスがiframe側へ移り、以降のキー操作は
+    // iframe内で起きる。iframeはそれを本体へ転送するので、本体側で引き取る必要がある。
+    context.win.emit('message', {
+      source: context.els.currentFrame.contentWindow,
+      data: { type: 'keydown', key: 'ArrowRight' },
+    });
+    assert.equal(context.els.positionEl.textContent, '2 / 3');
+
+    context.win.emit('message', {
+      source: context.els.nextFrame.contentWindow,
+      data: { type: 'keydown', key: 'ArrowLeft' },
+    });
+    assert.equal(context.els.positionEl.textContent, '1 / 3');
+  } finally {
+    context.cleanup();
+  }
+});
+
+test('発表者ビューのiframeのクリックではページを送らない（手元での誤クリック対策）', async () => {
+  const context = await setupPresenter();
+  try {
+    start();
+    context.markReady();
+
+    context.win.emit('message', {
+      source: context.els.currentFrame.contentWindow,
+      data: { type: 'click' },
+    });
+
+    assert.equal(context.els.positionEl.textContent, '1 / 3');
+  } finally {
+    context.cleanup();
+  }
+});
+
+test('発表していないときは発表者ビューのiframeからのキー操作を無視する', async () => {
+  const context = await setupPresenter();
+  try {
+    context.win.emit('message', {
+      source: context.els.currentFrame.contentWindow,
+      data: { type: 'keydown', key: 'ArrowRight' },
+    });
+
+    assert.equal(isPresenting(), false);
+    assert.equal(context.els.positionEl.textContent, '');
+  } finally {
+    context.cleanup();
+  }
+});
