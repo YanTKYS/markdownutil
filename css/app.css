@@ -334,8 +334,9 @@ select {
   justify-self: end;
 }
 
-/* 状態表示。常に1行分の高さを確保し、通知の長さで下のレイアウトが動かないようにする。
-   はみ出した分は省略し、全文はtitle属性で確認できる（app.jsのsetStatus）。
+/* 状態表示。通常・成功・処理中は常に1行分の高さを確保し、通知の長さで下のレイアウトが
+   動かないようにする。はみ出した分は省略し、全文はtitle属性で確認できる（app.jsのsetStatus）。
+   エラーだけは原因と次の操作を読み切れるよう、省略せず必要な行数まで広げる。
    種別は色だけでなく先頭の記号（i / ✓ / ! / 処理中の輪）でも区別する。 */
 .status-bar {
   grid-area: status;
@@ -394,6 +395,11 @@ select {
 }
 
 .status-bar[data-tone="error"] {
+  height: auto;
+  min-height: var(--status-height);
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
   background: var(--color-danger-bg);
   border-color: var(--color-danger-border);
   color: var(--color-danger);
@@ -402,6 +408,8 @@ select {
 
 .status-bar[data-tone="error"]::before {
   content: "!";
+  top: 5px;
+  margin-top: 0;
   border-color: var(--color-danger);
   background: var(--color-danger);
   color: var(--color-text-on-accent);
@@ -729,6 +737,14 @@ select {
   .status-bar::before {
     top: 5px;
     margin-top: 0;
+  }
+
+  .status-bar[data-tone="error"] {
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: none;
+    height: auto;
+    min-height: calc(var(--status-height) + var(--line-height-tight));
   }
 }
 
