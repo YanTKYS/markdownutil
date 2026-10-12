@@ -13,7 +13,7 @@ import { DOCUMENT_SAMPLE, SLIDE_SAMPLE } from './samples.js';
 import { buildDocxBlob, WordExportError } from './word-export.js';
 import { copyText, COPY_FAILED_MESSAGE } from './clipboard.js';
 import { downloadBlob, downloadTextFile } from './download.js';
-import { setTabSelected } from './dom.js';
+import { setTabSelected, bindTabArrowKeys } from './dom.js';
 import { logError } from './errors.js';
 
 const openBtn = document.getElementById('open-btn');
@@ -78,6 +78,8 @@ let slideError = null;
 
 function setStatus(message, tone = 'info') {
   statusBar.textContent = message;
+  // 長い通知は表示領域で省略されるため（高さ固定。css/app.cssの.status-bar）、全文をtitleにも持たせる。
+  statusBar.title = message;
   if (tone === 'info') {
     statusBar.removeAttribute('data-tone');
   } else {
@@ -91,6 +93,7 @@ function setConverting(value) {
   // 内容が予告なく失われる。Markdown自体を変更できる操作だけを一時的に止める。
   openBtn.disabled = value;
   editor.disabled = value;
+  dropZone.setAttribute('aria-busy', String(value));
   clearBtn.disabled = value;
   slideThemeSelect.disabled = value;
   wordExportBtn.disabled = value || state.isExportingWord;
@@ -133,7 +136,7 @@ function refreshDocPreview() {
     // プレビューの失敗を黙って見逃すと、編集しても右ペインが古い内容のままになる。
     // 編集内容は残したまま、反映できていないことを利用者へ伝える。
     logError('refreshDocPreview: 文書プレビューの描画に失敗', error);
-    setStatus('プレビューを更新できませんでした。表示は直前の内容のままです。', 'error');
+    setStatus('プレビューを更新できませんでした。表示は直前の内容のままです。編集内容は残っているので、保存してからページを再読み込みしてください。', 'error');
   }
 }
 
@@ -146,6 +149,7 @@ function syncThemeSelect() {
 // 描画のたびに上書きされるため、エラーが解消すれば自動的に消える。
 function setSlideStatus(text, isError) {
   slideStatus.textContent = text;
+  slideStatus.title = text;
   if (isError) {
     slideStatus.dataset.tone = 'error';
   } else {
@@ -226,12 +230,12 @@ async function handleFile(file) {
   setConverting(true);
   try {
     if (isTextFile(file.name)) {
-      setStatus(`${file.name} を読み込んでいます...`, 'busy');
+      setStatus(`${file.name} を読み込んでいます。完了するまで編集やファイル操作はできません。`, 'busy');
       const text = await file.text();
       replaceEditorContent(text, deriveSaveFilename(file.name));
       setStatus(`${file.name} を読み込みました`, 'success');
     } else {
-      setStatus('変換中...', 'busy');
+      setStatus(`${file.name} を変換しています。完了するまで編集やファイル操作はできません。`, 'busy');
       const markdown = await convertToMarkdown(file);
       replaceEditorContent(markdown, deriveSaveFilename(file.name));
       setStatus(`${file.name} → Markdown変換完了`, 'success');
@@ -242,7 +246,7 @@ async function handleFile(file) {
     logError(`handleFile: ${file.name} の読み込み・変換に失敗`, error);
     const message = error instanceof ConversionError
       ? error.message
-      : 'ファイルを読み込めませんでした。';
+      : 'ファイルを読み込めませんでした。ファイルを確認して、もう一度お試しください。';
     setStatus(message, 'error');
   } finally {
     setConverting(false);
@@ -267,7 +271,7 @@ function saveMarkdown() {
     downloadTextFile(filename, editor.value, 'text/markdown');
   } catch (error) {
     logError(`saveMarkdown: ${filename} の保存に失敗`, error);
-    setStatus('ファイルを保存できませんでした。', 'error');
+    setStatus('ファイルを保存できませんでした。ブラウザのダウンロード設定を確認して、もう一度お試しください。', 'error');
     return;
   }
   setStatus(`${filename} を保存しました`, 'success');
@@ -276,7 +280,7 @@ function saveMarkdown() {
 async function exportWord() {
   if (state.isConverting || state.isExportingWord) return;
   if (!editor.value.trim()) {
-    setStatus('Word出力するMarkdownがありません。', 'error');
+    setStatus('Word出力するMarkdownがありません。Markdownを入力するか、ファイルを開いてください。', 'error');
     return;
   }
 
@@ -288,7 +292,7 @@ async function exportWord() {
 
   state.isExportingWord = true;
   wordExportBtn.disabled = true;
-  setStatus('Wordファイルを作成しています...', 'busy');
+  setStatus('Wordファイルを作成しています。完了するまでWord出力は押せません。', 'busy');
   try {
     const blob = await buildDocxBlob(markdown);
     downloadBlob(filename, blob);
@@ -297,7 +301,7 @@ async function exportWord() {
     logError(`exportWord: ${filename} の生成・保存に失敗`, error);
     const message = error instanceof WordExportError
       ? error.message
-      : 'Wordファイルを作成できませんでした。';
+      : 'Wordファイルを作成できませんでした。もう一度お試しください。';
     setStatus(message, 'error');
   } finally {
     state.isExportingWord = false;
@@ -420,6 +424,7 @@ function setupSlideControls() {
 
   modeDocBtn.addEventListener('click', () => switchMode('doc'));
   modeSlideBtn.addEventListener('click', () => switchMode('slide'));
+  bindTabArrowKeys([modeDocBtn, modeSlideBtn]);
 
   slideThemeSelect.addEventListener('change', () => {
     const updated = slidePreview.writeTheme(editor.value, slideThemeSelect.value);
@@ -445,7 +450,7 @@ function setupSlideControls() {
       downloadTextFile(`${title}.html`, html, 'text/html');
     } catch (error) {
       logError(`slideExport: ${title}.html の保存に失敗`, error);
-      setStatus('HTMLファイルを保存できませんでした。', 'error');
+      setStatus('HTMLファイルを保存できませんでした。ブラウザのダウンロード設定を確認して、もう一度お試しください。', 'error');
       return;
     }
     setStatus(`${title}.html を保存しました`, 'success');

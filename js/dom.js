@@ -29,6 +29,29 @@ export function setTabSelected(button, isActive) {
 }
 
 /**
+ * タブ（`role="tab"`）の並びで、←/→（Home/End）キーによる移動を有効にする
+ * （WAI-ARIAのタブパターン）。移動先のタブへフォーカスを移し、クリック操作と同じ
+ * 経路で選択する。Tabキーでの移動は変えない（各タブはそのままTab停止位置になる）。
+ * @param {HTMLElement[]} tabs 左から順に並んだタブのボタン
+ */
+export function bindTabArrowKeys(tabs) {
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('keydown', (event) => {
+      if (hasModifierKey(event) || event.shiftKey) return;
+      let target = null;
+      if (event.key === 'ArrowRight') target = tabs[(index + 1) % tabs.length];
+      else if (event.key === 'ArrowLeft') target = tabs[(index - 1 + tabs.length) % tabs.length];
+      else if (event.key === 'Home') target = tabs[0];
+      else if (event.key === 'End') target = tabs[tabs.length - 1];
+      if (!target) return;
+      event.preventDefault();
+      target.focus();
+      target.click();
+    });
+  });
+}
+
+/**
  * Ctrl/Alt/Metaを伴うキー操作かどうか。ブラウザ自身の操作（Ctrl+P等）を
  * 独自のキー処理で奪わないための判定に使う。
  */

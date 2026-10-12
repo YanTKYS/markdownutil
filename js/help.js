@@ -8,7 +8,7 @@
 // 保持やエディタ・Marpへの反映はapp.js（とsamples.js）の責務とする。
 
 import { copyText, COPY_FAILED_MESSAGE } from './clipboard.js';
-import { createElement as el, setTabSelected } from './dom.js';
+import { createElement as el, setTabSelected, bindTabArrowKeys } from './dom.js';
 
 const MARKDOWN_ITEMS = [
   {
@@ -192,7 +192,7 @@ function buildItem(item) {
   const pre = el('pre', 'help-item__code');
   pre.appendChild(el('code', null, item.code));
   codeWrap.appendChild(pre);
-  codeWrap.appendChild(buildCopyButton('help-item__copy-btn', 'コピー', item.code));
+  codeWrap.appendChild(buildCopyButton('btn btn-small help-item__copy-btn', 'コピー', item.code));
 
   article.appendChild(codeWrap);
   return article;
@@ -219,7 +219,7 @@ function buildList(tag, className, texts) {
 
 /** 「使い方」タブの「サンプルで試す」ボタン。押されたことをapp.js側へ通知するだけ。 */
 function buildSampleButton(label, callbackName) {
-  const button = el('button', 'help-guide__sample-btn', label);
+  const button = el('button', 'btn help-guide__sample-btn', label);
   button.type = 'button';
   button.addEventListener('click', () => {
     if (typeof els[callbackName] === 'function') els[callbackName]();
@@ -451,6 +451,7 @@ export function init(elements) {
   TAB_NAMES.forEach((tabName) => {
     els.tabButtons[tabName].addEventListener('click', () => setTab(tabName));
   });
+  bindTabArrowKeys(TAB_NAMES.map((tabName) => els.tabButtons[tabName]));
 
   // 背景（オーバーレイ自身)をクリックした場合だけ閉じる。ダイアログ内のクリックが
   // 誤ってバブリングしても閉じないよう、クリックされた要素そのものを確認する。

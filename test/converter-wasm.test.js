@@ -110,7 +110,7 @@ test('拡張子が無いファイルは内容から形式を判定させる', as
 
   assert.ok(error instanceof ConversionError);
   assert.equal(error.code, 'unsupported');
-  assert.equal(error.message, 'この形式は変換に対応していません。');
+  assert.equal(error.message, 'この形式は変換に対応していません。ヘルプの「使い方」にある対応形式のファイルを開いてください。');
 });
 
 test('壊れたdocxはmalformedのConversionErrorになる', async () => {
@@ -119,7 +119,7 @@ test('壊れたdocxはmalformedのConversionErrorになる', async () => {
 
   assert.ok(error instanceof ConversionError);
   assert.equal(error.code, 'malformed');
-  assert.equal(error.message, 'ファイルが破損しているか、読み取れない構造のため変換できませんでした。');
+  assert.equal(error.message, 'ファイルが破損しているか、読み取れない構造のため変換できません。元のアプリで保存し直したファイルを開いてください。');
   assert.ok(error.cause, 'AnyDoc側のエラーを原因として保持していない');
 });
 
@@ -136,7 +136,7 @@ test('ファイルの読み込みに失敗した場合はreadFailedのConversion
 
   assert.ok(error instanceof ConversionError);
   assert.equal(error.code, 'readFailed');
-  assert.equal(error.message, 'ファイルの読み込みに失敗しました。');
+  assert.equal(error.message, 'ファイルを読み込めませんでした。ファイルを選び直してください。');
   assert.equal(error.cause.message, 'disk error');
 });
 
