@@ -74,18 +74,18 @@ function messageForError(error) {
 
   switch (code) {
     case 'encrypted':
-      return 'このファイルはパスワード保護（暗号化）されているため変換できません。';
+      return 'このファイルはパスワード保護されているため変換できません。保護を解除してから開いてください。';
     case 'unsupported':
       if (/scanned/i.test(rawMessage) || /ocr/i.test(rawMessage)) {
-        return 'このPDFからテキストを取得できませんでした。スキャンPDFには対応していない可能性があります。';
+        return 'このPDFからテキストを取得できませんでした（スキャンPDFは非対応）。OCR済みのファイルか元の文書を開いてください。';
       }
-      return 'この形式は変換に対応していません。';
+      return 'この形式は変換に対応していません。ヘルプの「使い方」にある対応形式のファイルを開いてください。';
     case 'malformed':
-      return 'ファイルが破損しているか、読み取れない構造のため変換できませんでした。';
+      return 'ファイルが破損しているか、読み取れない構造のため変換できません。元のアプリで保存し直したファイルを開いてください。';
     case 'resourceLimit':
-      return 'ファイルの規模が処理可能な上限を超えているため変換できませんでした。';
+      return 'ファイルの規模が処理可能な上限を超えています。内容を分割するなど小さくしてから開いてください。';
     case 'missingPart':
-      return '変換に必要なデータがファイル内に見つからず、変換できませんでした。';
+      return '変換に必要なデータがファイル内に見つかりません。元のアプリで保存し直したファイルを開いてください。';
     case 'initFailed':
       return 'WASMモジュールの初期化に失敗しました。ページを再読み込みしてください。';
     default:
@@ -107,7 +107,7 @@ export async function convertToMarkdown(file) {
   try {
     buffer = await file.arrayBuffer();
   } catch (cause) {
-    throw new ConversionError('ファイルの読み込みに失敗しました。', { code: 'readFailed', cause });
+    throw new ConversionError('ファイルを読み込めませんでした。ファイルを選び直してください。', { code: 'readFailed', cause });
   }
 
   const bytes = new Uint8Array(buffer);

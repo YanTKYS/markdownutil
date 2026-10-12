@@ -20,17 +20,26 @@
 <body>
 <div class="app">
   <header class="toolbar">
-    <div class="toolbar-row">
-      <h1 class="app-title">MarkdownUtil</h1>
-      <div class="toolbar-actions">
-        <button id="open-btn" type="button">ファイルを開く</button>
+    <h1 class="app-title">MarkdownUtil</h1>
+    <!-- 操作順（開く → 保存・コピー・Word出力 → クリア）に沿って3つのグループへ分ける。
+         role="toolbar"ではなくrole="group"とし、Tabキーで順に移動できる従来の操作を保つ。
+         表示位置はCSS（.toolbarのgrid）で決めるため、DOMはTab順（… → クリア → ヘルプ）で並べる。 -->
+    <div class="toolbar-actions">
+      <div class="toolbar-group" role="group" aria-label="ファイルの読み込み">
+        <button id="open-btn" type="button" class="btn btn-primary">ファイルを開く</button>
         <input id="file-input" type="file" hidden>
-        <button id="save-btn" type="button">Markdownを保存</button>
-        <button id="copy-btn" type="button">Markdownをコピー</button>
-        <button id="word-export-btn" type="button">Word出力</button>
-        <button id="clear-btn" type="button">クリア</button>
-        <button id="help-btn" type="button" class="help-btn">? ヘルプ</button>
       </div>
+      <div class="toolbar-group" role="group" aria-label="保存・コピー・出力">
+        <button id="save-btn" type="button" class="btn">Markdownを保存</button>
+        <button id="copy-btn" type="button" class="btn">Markdownをコピー</button>
+        <button id="word-export-btn" type="button" class="btn">Word出力</button>
+      </div>
+      <div class="toolbar-group" role="group" aria-label="編集内容の消去">
+        <button id="clear-btn" type="button" class="btn btn-subtle">クリア</button>
+      </div>
+    </div>
+    <div class="toolbar-help">
+      <button id="help-btn" type="button" class="btn btn-subtle">? ヘルプ</button>
     </div>
     <p class="status-bar" id="status-bar" role="status" aria-live="polite">ファイルを開くか、Markdownをドラッグ&amp;ドロップしてください。</p>
   </header>
@@ -58,25 +67,30 @@
     <section class="pane pane-preview" aria-label="プレビュー領域">
       <div class="pane-header pane-header-preview">
         <span class="pane-label">プレビュー</span>
-        <div class="mode-toggle" role="tablist" aria-label="プレビュー切替">
-          <button type="button" id="mode-doc-btn" class="mode-btn is-active" role="tab" aria-selected="true">文書</button>
-          <button type="button" id="mode-slide-btn" class="mode-btn" role="tab" aria-selected="false">スライド</button>
+        <div class="tab-list" role="tablist" aria-label="プレビュー切替">
+          <button type="button" id="mode-doc-btn" class="tab is-active" role="tab" aria-selected="true">文書</button>
+          <button type="button" id="mode-slide-btn" class="tab" role="tab" aria-selected="false">スライド</button>
         </div>
       </div>
+      <!-- 主ヘッダ（.pane-header）の外に独立した行として置く（css/app.cssの.slide-toolbar参照）。 -->
       <div class="slide-toolbar" id="slide-toolbar" hidden>
         <span class="slide-status" id="slide-status" aria-live="polite"></span>
-        <label class="slide-toolbar-label" for="slide-theme-select">テーマ</label>
-        <select id="slide-theme-select" aria-label="スライドテーマ">
-          <option value="default">default</option>
-          <option value="gaia">gaia</option>
-          <option value="uncover">uncover</option>
-        </select>
-        <button type="button" id="slide-export-html-btn">HTML出力</button>
-        <button type="button" id="slide-print-btn">印刷</button>
-        <button type="button" id="slide-present-btn">プレゼン表示</button>
+        <div class="toolbar-group" role="group" aria-label="スライドのテーマ">
+          <label class="slide-toolbar-label" for="slide-theme-select">テーマ</label>
+          <select id="slide-theme-select" class="select">
+            <option value="default">default</option>
+            <option value="gaia">gaia</option>
+            <option value="uncover">uncover</option>
+          </select>
+        </div>
+        <div class="toolbar-group" role="group" aria-label="スライドの出力">
+          <button type="button" id="slide-export-html-btn" class="btn">HTML出力</button>
+          <button type="button" id="slide-print-btn" class="btn">印刷</button>
+          <button type="button" id="slide-present-btn" class="btn">プレゼン表示</button>
+        </div>
       </div>
       <div class="preview-body">
-        <div class="preview" id="preview" role="region" aria-label="Markdownプレビュー"></div>
+        <div class="preview" id="preview" role="region" aria-label="Markdownプレビュー" tabindex="0"></div>
         <iframe class="slide-frame" id="slide-frame" title="スライドプレビュー" hidden></iframe>
       </div>
     </section>
@@ -86,7 +100,7 @@
     <div class="presenter-view__header">
       <span class="presenter-view__title">発表者ビュー</span>
       <span class="presenter-view__position" id="presenter-position" aria-live="polite">- / -</span>
-      <button type="button" id="presenter-end-btn" class="presenter-view__end-btn">終了</button>
+      <button type="button" id="presenter-end-btn" class="btn btn-danger presenter-view__end-btn">終了</button>
     </div>
     <div class="presenter-view__slides">
       <div class="presenter-view__slide-box">
@@ -103,8 +117,8 @@
       <div class="presenter-view__notes-body" id="presenter-notes" aria-live="polite"></div>
     </div>
     <div class="presenter-view__controls">
-      <button type="button" id="presenter-prev-btn">← 前へ</button>
-      <button type="button" id="presenter-next-btn">次へ →</button>
+      <button type="button" id="presenter-prev-btn" class="btn">← 前へ</button>
+      <button type="button" id="presenter-next-btn" class="btn">次へ →</button>
     </div>
   </section>
 </div>
@@ -113,13 +127,13 @@
   <div class="help-dialog" id="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="help-header">
       <h2 class="help-title" id="help-title">MarkdownUtil ヘルプ</h2>
-      <button type="button" id="help-close-btn" class="help-close-btn" aria-label="ヘルプを閉じる">×</button>
+      <button type="button" id="help-close-btn" class="btn btn-subtle btn-icon" aria-label="ヘルプを閉じる">×</button>
     </div>
-    <div class="help-tabs" role="tablist" aria-label="ヘルプの切替">
-      <button type="button" id="help-tab-guide" class="help-tab is-active" role="tab" aria-selected="true">使い方</button>
-      <button type="button" id="help-tab-markdown" class="help-tab" role="tab" aria-selected="false">Markdown</button>
-      <button type="button" id="help-tab-marp" class="help-tab" role="tab" aria-selected="false">Marp</button>
-      <button type="button" id="help-tab-presentation" class="help-tab" role="tab" aria-selected="false">プレゼン</button>
+    <div class="tab-list help-tabs" role="tablist" aria-label="ヘルプの切替">
+      <button type="button" id="help-tab-guide" class="tab is-active" role="tab" aria-selected="true">使い方</button>
+      <button type="button" id="help-tab-markdown" class="tab" role="tab" aria-selected="false">Markdown</button>
+      <button type="button" id="help-tab-marp" class="tab" role="tab" aria-selected="false">Marp</button>
+      <button type="button" id="help-tab-presentation" class="tab" role="tab" aria-selected="false">プレゼン</button>
     </div>
     <div class="help-body">
       <div class="help-panel-guide" id="help-panel-guide"></div>
