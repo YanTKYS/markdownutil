@@ -51,6 +51,14 @@ Copyright (c) 2026 YanTKYS）が適用されます。ただし`vendor/`配下の
 含まれており、個別のファイルとしては配置していないが、ライセンス全文を`LICENSES/marp-core-dependencies/`に
 同梱している。
 
+「直接の依存」は`@marp-team/marp-core`・`@marp-team/marpit`が直接読み込むライブラリ、
+「推移的な依存」はそれらがさらに読み込むライブラリである（2026-11-27に、`@marp-team/marp-core@4.4.0`を
+`esbuild`（`bundle` / `minify` / `platform: 'browser'`）でバンドルし直して取り込まれるパッケージを
+metafileで列挙し、実体の`vendor/marp/marp-core.bundle.mjs`と照合して作成。パッチバージョンは
+再ビルド時の解決結果により前後し得るが、パッケージの構成とライセンスは変わらない）。
+
+### 直接の依存
+
 | ライブラリ名 | ライセンス | ライセンス全文 |
 | --- | --- | --- |
 | `@marp-team/marpit` | MIT | `LICENSES/marp-core-dependencies/marpit-LICENSE.txt` |
@@ -60,6 +68,32 @@ Copyright (c) 2026 YanTKYS）が適用されます。ただし`vendor/`配下の
 | `mathjax-full` | Apache-2.0 | `LICENSES/marp-core-dependencies/mathjax-full-LICENSE.txt` |
 | `postcss-selector-parser` | MIT | `LICENSES/marp-core-dependencies/postcss-selector-parser-LICENSE.txt` |
 | `xss` | MIT | `LICENSES/marp-core-dependencies/xss-LICENSE.txt` |
+
+### 推移的な依存
+
+| ライブラリ名 | ライセンス | ライセンス全文 |
+| --- | --- | --- |
+| `postcss` | MIT | `LICENSES/marp-core-dependencies/postcss-LICENSE.txt` |
+| `nanoid`（postcssが使用。3.x） | MIT | `LICENSES/marp-core-dependencies/nanoid-LICENSE.txt` |
+| `picocolors` | ISC | `LICENSES/marp-core-dependencies/picocolors-LICENSE.txt` |
+| `source-map-js` | BSD-3-Clause | `LICENSES/marp-core-dependencies/source-map-js-LICENSE.txt` |
+| `@csstools/postcss-is-pseudo-class` | MIT-0 | `LICENSES/marp-core-dependencies/csstools-postcss-is-pseudo-class-LICENSE.txt` |
+| `@csstools/selector-resolve-nested` | MIT-0 | `LICENSES/marp-core-dependencies/csstools-selector-resolve-nested-LICENSE.txt` |
+| `@csstools/selector-specificity` | MIT-0 | `LICENSES/marp-core-dependencies/csstools-selector-specificity-LICENSE.txt` |
+| `postcss-nesting` | MIT-0 | `LICENSES/marp-core-dependencies/postcss-nesting-LICENSE.txt` |
+| `cssesc` | MIT | `LICENSES/marp-core-dependencies/cssesc-LICENSE.txt` |
+| `cssfilter`（`xss`が使用） | MIT | `LICENSES/marp-core-dependencies/cssfilter-LICENSE.txt` |
+| `markdown-it`（marpitが使用。14.x。上記の`vendor/markdown-it/`とは別のバンドル内コピー） | MIT | `LICENSES/marp-core-dependencies/markdown-it-LICENSE.txt` |
+| `markdown-it-front-matter` | MIT | `LICENSES/marp-core-dependencies/markdown-it-front-matter-LICENSE.txt` |
+| `linkify-it` | MIT | `LICENSES/marp-core-dependencies/linkify-it-LICENSE.txt` |
+| `mdurl` | MIT | `LICENSES/marp-core-dependencies/mdurl-LICENSE.txt` |
+| `uc.micro` | MIT | `LICENSES/marp-core-dependencies/uc.micro-LICENSE.txt` |
+| `punycode.js` | MIT | `LICENSES/marp-core-dependencies/punycode.js-LICENSE.txt` |
+| `entities` | BSD-2-Clause | `LICENSES/marp-core-dependencies/entities-LICENSE.txt` |
+| `js-yaml` | MIT | `LICENSES/marp-core-dependencies/js-yaml-LICENSE.txt` |
+| `lodash.kebabcase` | MIT | `LICENSES/marp-core-dependencies/lodash.kebabcase-LICENSE.txt` |
+| `mhchemparser`（`mathjax-full`が使用） | Apache-2.0 | `LICENSES/marp-core-dependencies/mhchemparser-LICENSE.txt` |
+| `util-deprecate` | MIT | `LICENSES/marp-core-dependencies/util-deprecate-LICENSE.txt` |
 
 ## docx
 
@@ -84,6 +118,23 @@ Copyright (c) 2026 YanTKYS）が適用されます。ただし`vendor/`配下の
 | `hash.js` | MIT | `LICENSES/docx-dependencies/hash.js-LICENSE.txt` |
 | `xml` | MIT | `LICENSES/docx-dependencies/xml-LICENSE.txt` |
 | `xml-js` | MIT | `LICENSES/docx-dependencies/xml-js-LICENSE.txt` |
+
+上記の直接依存がさらに読み込むライブラリも、`docx@9.7.1`の配布物（`dist/index.mjs`）の時点で取り込まれており、
+`vendor/docx/docx.esm.min.mjs`に含まれている。ライセンス全文を`LICENSES/docx-dependencies/`に同梱している。
+
+| ライブラリ名 | ライセンス | ライセンス全文 |
+| --- | --- | --- |
+| `pako`（`jszip`が使用） | MIT AND Zlib | `LICENSES/docx-dependencies/pako-LICENSE.txt` |
+| `lie`（`jszip`が使用） | MIT | `LICENSES/docx-dependencies/lie-LICENSE.txt` |
+| `immediate`（`lie`が使用） | MIT | `LICENSES/docx-dependencies/immediate-LICENSE.txt` |
+| `setimmediate`（`jszip`が使用） | MIT | `LICENSES/docx-dependencies/setimmediate-LICENSE.txt` |
+| `readable-stream`（`jszip`が使用。2.x） | MIT（Node.js由来部分を含む） | `LICENSES/docx-dependencies/readable-stream-LICENSE.txt` |
+| `core-util-is` / `inherits` / `isarray` / `process-nextick-args` / `safe-buffer` / `string_decoder` / `util-deprecate`（`readable-stream`等が使用） | MIT（`inherits`はISC） | `LICENSES/docx-dependencies/`配下の同名`-LICENSE.txt` |
+| `minimalistic-assert`（`hash.js`が使用） | ISC | `LICENSES/docx-dependencies/minimalistic-assert-LICENSE.txt` |
+| `sax`（`xml-js`が使用） | ISC（1.4.1以前）またはBlue Oak Model License 1.0.0（1.4.2以降） | `LICENSES/docx-dependencies/sax-LICENSE.txt`（両方の全文を収録） |
+
+`isarray`は配布物に独立したライセンスファイルがないため、READMEに記載されたMIT Licenseの全文を
+`isarray-LICENSE.txt`として収録している。`pako`のZlibライセンスは`pako-LICENSE.txt`に含まれる。
 
 ## slide / iSlide との関係
 
