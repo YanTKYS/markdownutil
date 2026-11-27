@@ -10,6 +10,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   buildFrameDocument,
@@ -21,6 +22,7 @@ import {
   openPrintWindow,
   render,
 } from '../js/slide-preview.js';
+import { LICENSE_TEXTS } from '../js/slide-licenses.js';
 
 const TWO_SLIDES = [
   '---',
@@ -318,3 +320,40 @@ test('openPrintWindow: 印刷用HTMLのBlob URLを新しいウィンドウで開
     globalThis.URL = previousUrl;
   }
 });
+
+/* ---- 生成HTMLへのライセンス表示（Marp Core由来のCSS） ---- */
+
+const normalizeLicense = (text) => text.replace(/\s+/g, ' ').trim();
+const readLicense = (path) => readFileSync(new URL(`../LICENSES/${path}`, import.meta.url), 'utf8');
+
+test('slide-licenses: 埋め込むライセンス全文がLICENSES/配下の全文と一致する', () => {
+  const files = {
+    marpCore: 'marp-core-LICENSE.txt',
+    marpit: 'marp-core-dependencies/marpit-LICENSE.txt',
+    githubMarkdownCss: 'marp-core-dependencies/github-markdown-css-LICENSE.txt',
+    highlightJs: 'marp-core-dependencies/highlight.js-LICENSE.txt',
+  };
+  for (const [key, path] of Object.entries(files)) {
+    assert.equal(normalizeLicense(LICENSE_TEXTS[key]), normalizeLicense(readLicense(path)), `${key}が${path}と不一致`);
+  }
+});
+
+for (const theme of ['default', 'gaia', 'uncover']) {
+  test(`buildStandaloneHtml: ${theme}テーマの出力にMarp Core・Marpit・highlight.jsのライセンスを残す`, async () => {
+    await render(`---\nmarp: true\ntheme: ${theme}\n---\n\n# A\n\n\`\`\`js\nconst a = 1;\n\`\`\`\n`);
+    const html = buildStandaloneHtml('題名', false);
+    const comment = html.match(/<style>\n(\/\*![\s\S]*?\*\/)/)[1];
+    const flat = normalizeLicense(comment.replace(/^ \* ?/gm, ''));
+
+    assert.ok(html.indexOf(comment) < html.indexOf('@theme'), 'ライセンス表示がテーマCSSより後ろにある');
+    for (const key of ['marpCore', 'marpit', 'highlightJs']) {
+      assert.ok(flat.includes(normalizeLicense(LICENSE_TEXTS[key])), `${key}のライセンス全文が無い`);
+    }
+    assert.equal(
+      flat.includes(normalizeLicense(LICENSE_TEXTS.githubMarkdownCss)),
+      theme === 'default',
+      'github-markdown-cssの通知はdefaultテーマだけに付く',
+    );
+    assert.ok(!html.includes('*/ */'), 'コメントが壊れている');
+  });
+}

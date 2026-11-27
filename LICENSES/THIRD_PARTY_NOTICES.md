@@ -95,6 +95,21 @@ metafileで列挙し、実体の`vendor/marp/marp-core.bundle.mjs`と照合し�
 | `mhchemparser`（`mathjax-full`が使用） | Apache-2.0 | `LICENSES/marp-core-dependencies/mhchemparser-LICENSE.txt` |
 | `util-deprecate` | MIT | `LICENSES/marp-core-dependencies/util-deprecate-LICENSE.txt` |
 
+### バンドルのCSSに含まれるスタイル
+
+`@marp-team/marp-core`のdefaultテーマ（`themes/default.scss`）は、`github-markdown-css` 5.9.0の
+CSSをコンパイルして取り込んでいる。`esbuild`のmetafileには現れないが、`vendor/marp/marp-core.bundle.mjs`
+内のdefaultテーマのCSSに含まれる（gaia / uncoverテーマには含まれない）。
+
+| ライブラリ名 | ライセンス | ライセンス全文 |
+| --- | --- | --- |
+| `github-markdown-css`（defaultテーマのCSS） | MIT（Copyright (c) Sindre Sorhus） | `LICENSES/marp-core-dependencies/github-markdown-css-LICENSE.txt` |
+
+「HTML出力」「印刷」で生成するスライドHTMLは、このCSSを埋め込むため、`<style>`の先頭に
+Marp Core・Marpitと、`highlight.js`（コードのシンタックスハイライトのCSS。全テーマ）、
+`github-markdown-css`（defaultテーマのみ）のライセンス全文をコメントとして残している
+（`js/slide-licenses.js`。利用者の本文・画像は対象外）。
+
 ## docx
 
 | 項目 | 内容 |
