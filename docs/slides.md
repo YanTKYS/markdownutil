@@ -108,6 +108,10 @@ paginate: true
 既にレンダリング済みのスライドの表示・非表示を切り替えるだけの数十行のJavaScriptだけを
 埋め込んでいます）。
 
+埋め込むCSSにはMarp Core・Marpit・highlight.js（defaultテーマはgithub-markdown-cssも）由来の
+スタイルが含まれるため、`<style>`の先頭にこれらのライセンス全文をコメントとして残しています
+（`js/slide-licenses.js`。利用者の本文・画像は対象外）。
+
 開いた直後は1枚ずつの表示になり、次の操作に対応します。
 
 | 操作 | キー / 操作 |

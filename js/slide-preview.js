@@ -18,6 +18,7 @@ import { openTextInNewWindow } from './download.js';
 // テーマの読み書きとfront matterの除去で判定が食い違うと、画面に見えている本文と
 // テーマ選択欄の内容がずれるため、正規表現は1か所だけに置く。
 import { FRONT_MATTER_PATTERN } from './markdown-engine.js';
+import { buildLicenseComment } from './slide-licenses.js';
 
 export const THEMES = ['default', 'gaia', 'uncover'];
 
@@ -561,6 +562,7 @@ export function buildStandaloneHtml(title, autoPrint) {
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${escapeHtml(title)}</title>`,
     '<style>',
+    buildLicenseComment(lastRendered.css),
     lastRendered.css,
     '</style>',
     '<style>',

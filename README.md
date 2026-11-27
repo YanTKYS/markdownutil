@@ -76,6 +76,17 @@ IIS等の静的Webサーバの公開フォルダへ配置するだけで利用�
 詳しいMIME設定手順、閉域環境での確認項目、CSPの設定内容は
 [`docs/deployment.md`](docs/deployment.md)を参照してください。
 
+## ライセンス
+
+MarkdownUtil自身のコード（`index.html` / `js/` / `css/` / `test/`）および自作の文書（`README.md` /
+`docs/`）は、[MIT License](LICENSE)（Copyright (c) 2026 YanTKYS）のもとで公開しています。
+
+`vendor/`配下の同梱ライブラリ（AnyDoc WASM・markdown-it・Marp Core・docx）と、そのバンドルに
+含まれる依存ライブラリは本ライセンスの対象外で、それぞれの元のライセンスに従います。
+ライセンス全文は`vendor/`各配下の`LICENSE`と[`LICENSES/`](LICENSES/)、一覧は
+[`LICENSES/THIRD_PARTY_NOTICES.md`](LICENSES/THIRD_PARTY_NOTICES.md)を参照してください。
+配置・再配布の際は、ルートの`LICENSE`、`LICENSES/`、`vendor/`各配下の`LICENSE`を含めてください。
+
 ## 詳細ドキュメント
 
 - [対応形式・変換仕様](docs/formats.md)
@@ -85,4 +96,5 @@ IIS等の静的Webサーバの公開フォルダへ配置するだけで利用�
 - [依存ライブラリの管理](docs/dependencies.md)
 - [テスト](docs/TESTING.md)
 - [リリースノート](docs/release-note.md)
+- [ライセンス](LICENSE)
 - [Third-party notices](LICENSES/THIRD_PARTY_NOTICES.md)
