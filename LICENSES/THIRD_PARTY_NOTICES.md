@@ -3,6 +3,13 @@
 MarkdownUtilが同梱している外部ライブラリの一覧です。いずれもリポジトリ内 `vendor/` 配下に
 実体を配置しており、CDNや実行時のダウンロードには依存していません。
 
+## 本ファイルの対象範囲
+
+本ファイルと`LICENSES/`配下は、MarkdownUtilが同梱する第三者ライブラリの通知です。
+MarkdownUtil自身のコード・文書には、ルートの[`LICENSE`](../LICENSE)（MIT License、
+Copyright (c) 2026 YanTKYS）が適用されます。ただし`vendor/`配下の第三者ライブラリには適用されず、
+各ライブラリの元のライセンスが引き続き適用されます。
+
 ## @firecrawl/anydoc-wasm
 
 | 項目 | 内容 |
